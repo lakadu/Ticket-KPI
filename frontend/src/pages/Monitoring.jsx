@@ -1,16 +1,39 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
 import { PageHeader, PageBody } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { formatMinutes } from "@/lib/format";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Cell,
 } from "recharts";
-import { Lightning, Warning, Timer, TrendUp, TrendDown, Medal, ClockClockwise } from "@phosphor-icons/react";
+import { Lightning, Warning, Timer, TrendUp, TrendDown, Medal, ClockClockwise, CalendarBlank, CaretDown } from "@phosphor-icons/react";
 
 const PRIO_COLOR = { Critical: "#EF4444", High: "#F59E0B", Medium: "#3B82F6", Low: "#94A3B8" };
 
-function StatCard({ label, value, sub, tone = "default", icon: Icon, testId }) {
+const startOfDay = (d) => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
+const endOfDay = (d) => { const x = new Date(d); x.setHours(23,59,59,999); return x; };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const startOfWeek = (d) => { const x = startOfDay(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); return x; }; // Monday
+const startOfMonth = (d) => { const x = startOfDay(d); x.setDate(1); return x; };
+const endOfMonth = (d) => { const x = startOfMonth(d); x.setMonth(x.getMonth() + 1); return addDays(x, -1); };
+
+function fmtLabel(d) {
+  return d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+const PRESETS = [
+  { key: "today", label: "Hari Ini", make: () => { const n = new Date(); return { from: startOfDay(n), to: endOfDay(n) }; } },
+  { key: "week", label: "Minggu Ini", make: () => { const n = new Date(); return { from: startOfWeek(n), to: endOfDay(n) }; } },
+  { key: "month", label: "Bulan Ini", make: () => { const n = new Date(); return { from: startOfMonth(n), to: endOfDay(n) }; } },
+  { key: "last_month", label: "Bulan Lalu", make: () => { const n = new Date(); const prev = new Date(n.getFullYear(), n.getMonth() - 1, 1); return { from: startOfMonth(prev), to: endOfMonth(prev) }; } },
+  { key: "30d", label: "30 Hari", make: () => { const n = new Date(); return { from: startOfDay(addDays(n, -29)), to: endOfDay(n) }; } },
+  { key: "90d", label: "90 Hari", make: () => { const n = new Date(); return { from: startOfDay(addDays(n, -89)), to: endOfDay(n) }; } },
+];
+
+function StatCard({ label, value, sub, tone = "default", icon: Icon, testId, delta }) {
   const tones = {
     default: "text-slate-900",
     good: "text-emerald-600",
@@ -25,6 +48,11 @@ function StatCard({ label, value, sub, tone = "default", icon: Icon, testId }) {
             <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{label}</div>
             <div className={`font-display text-3xl font-extrabold tabular-nums mt-2 ${tones[tone]}`}>{value}</div>
             {sub && <div className="text-xs text-slate-500 mt-1">{sub}</div>}
+            {delta && (
+              <div className={`inline-flex items-center gap-1 mt-2 text-xs font-semibold px-1.5 py-0.5 rounded ${delta.better ? "bg-emerald-50 text-emerald-700" : delta.worse ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"}`}>
+                {delta.better ? "▼" : delta.worse ? "▲" : "—"} {delta.text}
+              </div>
+            )}
           </div>
           {Icon && <Icon size={22} weight="duotone" className="text-slate-400" />}
         </div>
@@ -34,14 +62,64 @@ function StatCard({ label, value, sub, tone = "default", icon: Icon, testId }) {
 }
 
 export default function Monitoring() {
+  const [range, setRange] = useState(PRESETS[2].make()); // Bulan Ini default
+  const [presetKey, setPresetKey] = useState("month");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerRange, setPickerRange] = useState({ from: range.from, to: range.to });
   const [data, setData] = useState(null);
-  useEffect(() => { api.get("/monitoring/mttr").then(r => setData(r.data)); }, []);
+  const [prevData, setPrevData] = useState(null);
+
+  const load = useCallback(async (r) => {
+    const params = { date_from: r.from.toISOString(), date_to: r.to.toISOString() };
+    // Previous period of same length ending right before r.from
+    const ms = r.to.getTime() - r.from.getTime();
+    const prevTo = new Date(r.from.getTime() - 1);
+    const prevFrom = new Date(prevTo.getTime() - ms);
+    const [cur, prev] = await Promise.all([
+      api.get("/monitoring/mttr", { params }),
+      api.get("/monitoring/mttr", { params: { date_from: prevFrom.toISOString(), date_to: prevTo.toISOString() } }),
+    ]);
+    setData(cur.data);
+    setPrevData(prev.data);
+  }, []);
+
+  useEffect(() => { load(range); }, [range, load]);
+
+  const applyPreset = (key) => {
+    const p = PRESETS.find(x => x.key === key);
+    if (!p) return;
+    const r = p.make();
+    setPresetKey(key);
+    setRange(r);
+    setPickerRange(r);
+  };
+
+  const applyCustom = () => {
+    if (!pickerRange?.from || !pickerRange?.to) return;
+    setPresetKey("custom");
+    setRange({ from: startOfDay(pickerRange.from), to: endOfDay(pickerRange.to) });
+    setPickerOpen(false);
+  };
+
+  const buildDelta = (curr, prev, lowerIsBetter = true) => {
+    if (!prev || prev === 0 || !curr) return null;
+    const diff = curr - prev;
+    const pct = Math.abs((diff / prev) * 100);
+    const better = lowerIsBetter ? diff < 0 : diff > 0;
+    const worse = lowerIsBetter ? diff > 0 : diff < 0;
+    return { better, worse, text: `${pct.toFixed(1)}% vs periode sebelumnya` };
+  };
+
   if (!data) return <div className="p-8 text-slate-500">Memuat data…</div>;
 
   const fastest = data.fastest || [];
   const slowest = data.slowest || [];
   const priorityChart = data.by_priority.map(p => ({ name: p.priority, MTTR: p.mttr_min, Target: p.target_min }));
   const deptChart = data.by_department.slice(0, 8);
+
+  const deltaMttr = buildDelta(data.overall_mttr_min, prevData?.overall_mttr_min);
+  const deltaResp = buildDelta(data.overall_response_min, prevData?.overall_response_min);
+  const deltaCount = buildDelta(data.total_resolved, prevData?.total_resolved, false);
 
   return (
     <>
@@ -51,11 +129,55 @@ export default function Monitoring() {
         subtitle="Ringkasan kecepatan penyelesaian ticket seluruh tim — mudah dipahami dalam sekali lihat."
       />
       <PageBody>
+        <Card className="border-slate-200 shadow-none rounded-md">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-2" data-testid="date-filter">
+              <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mr-2">Periode:</span>
+              {PRESETS.map(p => (
+                <Button
+                  key={p.key}
+                  size="sm"
+                  variant={presetKey === p.key ? "default" : "outline"}
+                  onClick={() => applyPreset(p.key)}
+                  data-testid={`preset-${p.key}`}
+                  className={presetKey === p.key ? "bg-slate-900 hover:bg-slate-800" : ""}
+                >
+                  {p.label}
+                </Button>
+              ))}
+              <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button size="sm" variant={presetKey === "custom" ? "default" : "outline"} data-testid="preset-custom" className={presetKey === "custom" ? "bg-slate-900 hover:bg-slate-800" : ""}>
+                    <CalendarBlank size={14} className="mr-1.5" /> Kustom <CaretDown size={12} className="ml-1" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <div className="p-3 border-b border-slate-200">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mb-1">Pilih rentang tanggal</div>
+                    <div className="text-sm text-slate-700">
+                      {pickerRange?.from ? fmtLabel(pickerRange.from) : "Dari"} → {pickerRange?.to ? fmtLabel(pickerRange.to) : "Sampai"}
+                    </div>
+                  </div>
+                  <Calendar mode="range" selected={pickerRange} onSelect={setPickerRange} numberOfMonths={2} data-testid="date-range-calendar" />
+                  <div className="flex justify-end gap-2 p-3 border-t border-slate-200">
+                    <Button size="sm" variant="outline" onClick={() => setPickerOpen(false)}>Batal</Button>
+                    <Button size="sm" data-testid="apply-custom-range" className="bg-slate-900 hover:bg-slate-800" onClick={applyCustom} disabled={!pickerRange?.from || !pickerRange?.to}>Terapkan</Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <div className="flex-1" />
+              <div className="text-xs text-slate-600 font-mono" data-testid="active-range">
+                {fmtLabel(range.from)} — {fmtLabel(range.to)}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4" data-testid="mttr-headline">
           <StatCard testId="stat-mttr" label="MTTR Overall" value={formatMinutes(data.overall_mttr_min)}
-            sub={`${data.total_resolved} ticket terselesaikan`} icon={Timer}
+            sub={`${data.total_resolved} ticket terselesaikan`} icon={Timer} delta={deltaMttr}
             tone={data.overall_mttr_min < 120 ? "good" : data.overall_mttr_min < 480 ? "warn" : "bad"} />
-          <StatCard testId="stat-response" label="Rata-rata Response" value={formatMinutes(data.overall_response_min)} icon={Lightning} />
+          <StatCard testId="stat-response" label="Rata-rata Response" value={formatMinutes(data.overall_response_min)} icon={Lightning} delta={deltaResp} />
           <StatCard testId="stat-fastest" label="Teknisi Tercepat"
             value={fastest[0]?.name || "-"} sub={fastest[0] ? `MTTR ${formatMinutes(fastest[0].mttr_min)}` : "Belum ada data"}
             tone="good" icon={Medal} />
@@ -63,6 +185,22 @@ export default function Monitoring() {
             value={slowest[0]?.name || "-"} sub={slowest[0] ? `MTTR ${formatMinutes(slowest[0].mttr_min)}` : "Semua bagus 🎉"}
             tone="bad" icon={Warning} />
         </div>
+
+        {prevData && (
+          <Card className="border-slate-200 shadow-none rounded-md bg-slate-50/40">
+            <CardContent className="p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <div>
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mr-2">Perbandingan:</span>
+                  <span className="text-slate-700">Periode saat ini <b>{fmtLabel(range.from)} — {fmtLabel(range.to)}</b></span>
+                </div>
+                <div className="text-slate-500 text-xs">
+                  Sebelumnya: MTTR <b>{formatMinutes(prevData.overall_mttr_min)}</b> · Response <b>{formatMinutes(prevData.overall_response_min)}</b> · <b>{prevData.total_resolved}</b> ticket
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card className="border-emerald-200 shadow-none rounded-md bg-emerald-50/30">
@@ -232,6 +370,7 @@ export default function Monitoring() {
               <li><b>Response Time</b> = waktu dari ticket dibuat sampai teknisi pertama kali memberikan respons.</li>
               <li>Warna: 🟢 hijau = di bawah target/cepat, 🟡 kuning = sedang, 🔴 merah = melebihi target/lambat.</li>
               <li>Baris bertanda <b>Perlu Coaching</b> = kandidat mentoring 1:1 atau review beban kerja.</li>
+              <li>Badge <b>▼ hijau</b> = MTTR/Response turun (bagus), <b>▲ merah</b> = naik (perlu perhatian) — dihitung otomatis dibanding periode sebelumnya yang panjangnya sama.</li>
             </ul>
           </CardContent>
         </Card>

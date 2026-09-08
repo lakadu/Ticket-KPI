@@ -1,0 +1,146 @@
+{
+  "theme": "light_and_dark",
+  "archetype": "Swiss & High-Contrast (Authority, Clarity, Truth)",
+  "typography": {
+    "fonts": {
+      "headings": "Work Sans",
+      "body": "IBM Plex Sans",
+      "mono": "IBM Plex Mono"
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl tracking-tight font-bold",
+      "h2": "text-2xl sm:text-3xl tracking-tight font-semibold",
+      "h3": "text-xl sm:text-2xl font-medium",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-base sm:text-sm leading-relaxed",
+      "small_labels": "text-xs uppercase tracking-[0.2em] font-semibold"
+    },
+    "guidelines": [
+      "No generic sans (Inter/Roboto) for headings. Use Work Sans to inject character.",
+      "Tight letter spacing on headings (>32px).",
+      "Loose leading for body text to improve readability in dense ticket descriptions."
+    ]
+  },
+  "colors": {
+    "primary": {
+      "light": "#0F172A",
+      "dark": "#F8FAFC"
+    },
+    "background": {
+      "light": "#F8FAFC",
+      "dark": "#0A0A0A"
+    },
+    "surface": {
+      "light": "#FFFFFF",
+      "dark": "#18181B"
+    },
+    "semantic": {
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "critical": "#EF4444"
+    },
+    "guidelines": [
+      "Use stark white or 10% grey for backgrounds. Color is function only. 95% of the UI should be monochrome.",
+      "Green=Good/SLA OK, Yellow=Warning, Red=Violation/Critical must pop prominently against the neutral background.",
+      "Use purely semantic colors for badges and alerts to guide immediate action."
+    ]
+  },
+  "visual_enhancers": {
+    "surfaces": [
+      "Grid Borders (The 'Technical' Look): Expose the skeleton for data-heavy sections. border-r border-b border-border/40 on grid items.",
+      "Flat Solid: For dashboard widgets and ticket cards, use flat backgrounds with a 1px subtle border, no heavy shadow.",
+      "Neumorphism (Tactile): For small action buttons and toggles, use subtle inner shadows with sharp 1px borders."
+    ],
+    "guidelines": [
+      "Avoid glassmorphism on operational data tables to maintain clarity.",
+      "Hover states on cards: Slight lift (-translate-y-1), subtle shadow (shadow-lg), border color darkens."
+    ]
+  },
+  "layouts": {
+    "type": "High-Density Grid (For Dashboards/Analytics)",
+    "grid_structure": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4",
+    "gap": "gap-4 or gap-6",
+    "patterns": {
+      "dashboard_summary": "Top row KPI cards (Open incidents, open requests, SLA attainment).",
+      "main_queue": "Live table for operational queue below KPIs, spanning full width.",
+      "trends": "Trend widgets in the middle (ticket volume, resolution trend) spanning 2 columns."
+    },
+    "guidelines": [
+      "Every pixel must be utilized. Use h-full on children to ensure they stretch. No jagged bottoms.",
+      "Mobile-first responsive grids. Ensure optical alignment over geometrical alignment."
+    ]
+  },
+  "motion": {
+    "guidelines": [
+      "Micro-animations for hover, click, and focus states on all interactive elements.",
+      "Smooth staggered entrance animations for ticket list rows.",
+      "Respect prefers-reduced-motion for accessibility.",
+      "Do NOT apply universal transitions (e.g., transition: all), target specific properties (e.g., transition-colors)."
+    ]
+  },
+  "components": {
+    "libraries": [
+      "Shadcn UI (Tables, Dropdowns, Dialogs, Cards, Tabs, Select)",
+      "Recharts or Shadcn Charts (for KPI and Trend visuals)",
+      "Sonner (for Toast notifications)",
+      "Phosphor Icons (@phosphor-icons/react) for dense dashboard layouts."
+    ],
+    "guidelines": [
+      "ALWAYS explicitly set text color on hover. Focus states must have HIGHER contrast.",
+      "Customize Shadcn radii (max 8px) and spacing to match the technical aesthetic.",
+      "DO NOT use raw HTML elements for complex interactive elements (e.g., <select>, <input type='date'>). Use Shadcn."
+    ]
+  },
+  "accessibility": {
+    "guidelines": [
+      "Minimum 4.5:1 contrast for normal text, 3:1 for large text.",
+      "All interactive elements MUST include data-testid (e.g., data-testid='ticket-resolve-btn').",
+      "Do not use complete transparent background in headers/dropdowns to ensure readability."
+    ]
+  },
+  "media": {
+    "image_urls": [
+      {
+        "url": "https://images.unsplash.com/photo-1712159018726-4564d92f3ec2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MTN8MHwxfHNlYXJjaHw0fHxjdXN0b21lciUyMHN1cHBvcnQlMjBwb3J0cmFpdHxlbnwwfHx8fDE3ODg4NTAzMjN8MA&ixlib=rb-4.1.0&q=85",
+        "category": "avatars",
+        "description": "Technician / Support Staff avatar (man with headset)"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1540569014015-19a7be504e3a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MTN8MHwxfHNlYXJjaHwzfHxjdXN0b21lciUyMHN1cHBvcnQlMjBwb3J0cmFpdHxlbnwwfHx8fDE3ODg4NTAzMjN8MA&ixlib=rb-4.1.0&q=85",
+        "category": "avatars",
+        "description": "Customer / Manager avatar (man in coffee shop)"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1626863905121-3b0c0ed7b94c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MTN8MHwxfHNlYXJjaHwxfHxjdXN0b21lciUyMHN1cHBvcnQlMjBwb3J0cmFpdHxlbnwwfHx8fDE3ODg4NTAzMjN8MA&ixlib=rb-4.1.0&q=85",
+        "category": "auth_background",
+        "description": "Login page background image showing support staff working"
+      }
+    ]
+  },
+  "instructions_to_main_agent": {
+    "architecture_and_flow": [
+      "Build a dashboard-first application emphasizing ITSM features: Customer/User -> Ticket -> Assignment -> Resolution -> Rating -> KPI.",
+      "Implement Email/Username authentication on the Login Page with demo data pre-configured.",
+      "Implement empty Telegram and WhatsApp configuration fields in Settings (placeholder UI).",
+      "Ensure an attachment upload option directly in the ticket form and detail view, include UI states for compression process.",
+      "Ensure UI actions for Exporting to CSV and PDF are prominently placed on Reports and Ticket views."
+    ],
+    "functional_requirements": [
+      "Dashboard: Include Top-level KPI cards, SLA compliance widget, Ticket per month/category/priority charts, and Top performing tech list.",
+      "Ticket Management: Include robust filter/search/pagination, detailed view with activity timeline, priority badge, and explicit SLA color indicators (Green/Yellow/Red).",
+      "SLA Configuration: Build rules per priority in settings.",
+      "KPI Management: Build configurable weights (SLA 25%, Completion 20%, Response 15%, Resolution 15%, Reopen 10%, Rating 10%, Docs 5%).",
+      "Role-Based Access: Prepare UI structures to accommodate Admin, Manager, Supervisor, Technician, and Customer views."
+    ]
+  },
+  "universal_guidelines_for_main_agent": [
+    "Prioritize using pre-existing components from src/components/ui.",
+    "Do not center-align the app container. Respect natural reading flow.",
+    "Layered design elements with z-index hierarchy and subtle grain textures/noise overlays.",
+    "Do not use generic simplistic gradients; use flat colors with stark borders for this app.",
+    "Never use AI assistant emoji characters for icons; rely strictly on the chosen icon library (@phosphor-icons/react).",
+    "All interactive elements MUST have micro-animations and explicit hover/focus states.",
+    "Ensure 'data-testid' is attached to all meaningful components.",
+    "Provide installation commands for external libraries in standard bash steps if needed."
+  ]
+}

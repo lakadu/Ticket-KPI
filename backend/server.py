@@ -171,7 +171,11 @@ class TicketCreate(BaseModel):
     attachments: List[Dict[str, Any]] = Field(default_factory=list)
 
 class TicketAssign(BaseModel):
-    technician_id: str
+    technician_id: str  # primary/PIC
+    additional: List[str] = Field(default_factory=list)  # optional co-technicians
+
+class TicketCollaborators(BaseModel):
+    technician_ids: List[str]  # add these as collaborators
 
 class TicketStatusUpdate(BaseModel):
     status: str
@@ -427,6 +431,7 @@ async def create_ticket(body: TicketCreate, user=Depends(get_current_user)):
         "priority": body.priority,
         "status": "Open",
         "technician_id": None,
+        "technicians": [],  # all technicians handling this ticket (primary + collaborators)
         "created_at": now,
         "assigned_at": None,
         "first_response_at": None,
@@ -472,8 +477,12 @@ async def list_tickets(
     if user["role"] == "customer":
         query["customer_id"] = user["id"]
     elif user["role"] == "technician":
-        # technicians see their tickets + unassigned open
-        query["$or"] = [{"technician_id": user["id"]}, {"technician_id": None}]
+        # technicians see tickets where they are primary OR collaborator, + unassigned
+        query["$or"] = [
+            {"technician_id": user["id"]},
+            {"technicians": user["id"]},
+            {"technician_id": None},
+        ]
 
     if status:
         query["status"] = status
@@ -524,21 +533,84 @@ async def assign_ticket(tid: str, body: TicketAssign, user=Depends(require_roles
     t = await db.tickets.find_one({"id": tid})
     if not t:
         raise HTTPException(404)
+    # validate additional collaborators
+    additional_ids = [x for x in body.additional if x and x != body.technician_id]
+    if additional_ids:
+        found = await db.users.count_documents({"id": {"$in": additional_ids}, "role": "technician"})
+        if found != len(set(additional_ids)):
+            raise HTTPException(400, "One or more collaborators are not technicians")
     now = now_iso()
-    upd = {"technician_id": body.technician_id, "assigned_at": t.get("assigned_at") or now, "status": "Assigned" if t["status"] == "Open" else t["status"]}
+    techs = list(dict.fromkeys([body.technician_id] + additional_ids))  # dedupe, preserve order
+    upd = {
+        "technician_id": body.technician_id,
+        "technicians": techs,
+        "assigned_at": t.get("assigned_at") or now,
+        "status": "Assigned" if t["status"] == "Open" else t["status"],
+    }
     await db.tickets.update_one({"id": tid}, {"$set": upd})
+    desc = f"Assigned to {tech['name']}" + (f" (+{len(additional_ids)} collaborator{'s' if len(additional_ids)!=1 else ''})" if additional_ids else "")
     await db.ticket_activities.insert_one({
         "id": str(uuid.uuid4()), "ticket_id": tid, "user_id": user["id"],
-        "type": "assigned", "description": f"Assigned to {tech['name']}", "timestamp": now,
+        "type": "assigned", "description": desc, "timestamp": now,
     })
-    await log_audit(user["id"], "assign_ticket", "ticket", tid, {"technician_id": body.technician_id})
+    await log_audit(user["id"], "assign_ticket", "ticket", tid, {"technician_id": body.technician_id, "collaborators": additional_ids})
     await notify_all(
         f"🎫 <b>Ticket Assigned</b>\n"
         f"{t['number']} — {t['subject']}\n"
         f"Priority: {t['priority']}\n"
-        f"Assigned to: {tech['name']}"
+        f"Primary: {tech['name']}"
+        + (f"\nCollaborators: {len(additional_ids)}" if additional_ids else "")
     )
     return {"ok": True}
+
+@api.post("/tickets/{tid}/collaborators")
+async def add_collaborators(tid: str, body: TicketCollaborators, user=Depends(require_roles("admin", "manager", "supervisor"))):
+    t = await db.tickets.find_one({"id": tid})
+    if not t:
+        raise HTTPException(404)
+    if not t.get("technician_id"):
+        raise HTTPException(400, "Assign a primary technician first")
+    ids = [x for x in body.technician_ids if x]
+    if not ids:
+        raise HTTPException(400, "No technicians provided")
+    found_techs = await db.users.find({"id": {"$in": ids}, "role": "technician"}, {"_id": 0}).to_list(50)
+    if len(found_techs) != len(set(ids)):
+        raise HTTPException(400, "One or more not technicians")
+    current = t.get("technicians") or ([t["technician_id"]] if t.get("technician_id") else [])
+    merged = list(dict.fromkeys(current + ids))
+    added = [x for x in ids if x not in current]
+    if not added:
+        return {"ok": True, "already_present": True}
+    await db.tickets.update_one({"id": tid}, {"$set": {"technicians": merged}})
+    added_names = ", ".join(x["name"] for x in found_techs if x["id"] in added)
+    now = now_iso()
+    await db.ticket_activities.insert_one({
+        "id": str(uuid.uuid4()), "ticket_id": tid, "user_id": user["id"],
+        "type": "collaborator_added", "description": f"Collaborator{'s' if len(added)!=1 else ''} added: {added_names}", "timestamp": now,
+    })
+    await log_audit(user["id"], "add_collaborators", "ticket", tid, {"added": added})
+    return {"ok": True, "technicians": merged}
+
+@api.delete("/tickets/{tid}/collaborators/{coll_id}")
+async def remove_collaborator(tid: str, coll_id: str, user=Depends(require_roles("admin", "manager", "supervisor"))):
+    t = await db.tickets.find_one({"id": tid})
+    if not t:
+        raise HTTPException(404)
+    if coll_id == t.get("technician_id"):
+        raise HTTPException(400, "Cannot remove primary technician. Reassign first.")
+    current = t.get("technicians") or []
+    if coll_id not in current:
+        raise HTTPException(404, "Not a collaborator")
+    new_list = [x for x in current if x != coll_id]
+    await db.tickets.update_one({"id": tid}, {"$set": {"technicians": new_list}})
+    tech = await db.users.find_one({"id": coll_id}, {"_id": 0})
+    now = now_iso()
+    await db.ticket_activities.insert_one({
+        "id": str(uuid.uuid4()), "ticket_id": tid, "user_id": user["id"],
+        "type": "collaborator_removed", "description": f"Removed collaborator: {tech['name'] if tech else coll_id}", "timestamp": now,
+    })
+    await log_audit(user["id"], "remove_collaborator", "ticket", tid, {"removed": coll_id})
+    return {"ok": True, "technicians": new_list}
 
 @api.post("/tickets/{tid}/status")
 async def change_status(tid: str, body: TicketStatusUpdate, user=Depends(get_current_user)):
@@ -549,7 +621,7 @@ async def change_status(tid: str, body: TicketStatusUpdate, user=Depends(get_cur
         raise HTTPException(404)
     if user["role"] == "customer":
         raise HTTPException(403)
-    if user["role"] == "technician" and t.get("technician_id") != user["id"]:
+    if user["role"] == "technician" and user["id"] not in (t.get("technicians") or []) and t.get("technician_id") != user["id"]:
         raise HTTPException(403, "Not your ticket")
     now = now_iso()
     upd: Dict[str, Any] = {"status": body.status}
@@ -579,7 +651,7 @@ async def resolve_ticket(tid: str, body: TicketResolve, user=Depends(get_current
         raise HTTPException(404)
     if user["role"] == "customer":
         raise HTTPException(403)
-    if user["role"] == "technician" and t.get("technician_id") != user["id"]:
+    if user["role"] == "technician" and user["id"] not in (t.get("technicians") or []) and t.get("technician_id") != user["id"]:
         raise HTTPException(403)
     now = now_iso()
     upd = {
@@ -664,7 +736,8 @@ async def put_integrations(body: SettingsIn, user=Depends(require_roles("admin",
 # ---------- KPI Calculation ----------
 
 async def compute_kpi_for_technician(tech_id: str, date_from: Optional[str], date_to: Optional[str], config: Dict[str, Any]) -> Dict[str, Any]:
-    q: Dict[str, Any] = {"technician_id": tech_id}
+    # Include tickets where technician is primary OR in the technicians[] collaborator list
+    q: Dict[str, Any] = {"$or": [{"technician_id": tech_id}, {"technicians": tech_id}]}
     if date_from or date_to:
         rng = {}
         if date_from: rng["$gte"] = date_from
@@ -677,7 +750,11 @@ async def compute_kpi_for_technician(tech_id: str, date_from: Optional[str], dat
     resolved_tickets = [t for t in tickets if t.get("status") in resolved_states]
     resolved_count = len(resolved_tickets)
 
-    weighted_point = sum(PRIORITY_WEIGHTS.get(t["priority"], 2) for t in resolved_tickets)
+    # Fair-share weighted points: split among all technicians on the ticket
+    def share(t):
+        n = max(1, len(t.get("technicians") or ([t["technician_id"]] if t.get("technician_id") else [tech_id])))
+        return PRIORITY_WEIGHTS.get(t["priority"], 2) / n
+    weighted_point = round(sum(share(t) for t in resolved_tickets), 2)
 
     reopen_total = sum((t.get("reopen_count") or 0) for t in tickets)
     reopen_rate = (reopen_total / total * 100) if total else 0
@@ -1164,6 +1241,10 @@ async def seed_data():
                 })
 
     logger.info("Seeding complete.")
+
+    # Backfill: ensure every ticket with a primary technician has a technicians[] array
+    async for t in db.tickets.find({"technician_id": {"$ne": None}, "technicians": {"$in": [None, []]}}):
+        await db.tickets.update_one({"id": t["id"]}, {"$set": {"technicians": [t["technician_id"]]}})
 
 @app.on_event("startup")
 async def on_startup():

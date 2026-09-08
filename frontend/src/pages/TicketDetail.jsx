@@ -13,7 +13,7 @@ import { StatusBadge, PriorityBadge, SLAIndicator } from "@/components/Badges";
 import { formatDate, formatMinutes } from "@/lib/format";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { Star, CheckCircle, ArrowsClockwise, ArrowLeft, User as UserIcon, Clock, X } from "@phosphor-icons/react";
+import { Star, CheckCircle, ArrowsClockwise, ArrowLeft, User as UserIcon, Clock, X, UserPlus, Trash } from "@phosphor-icons/react";
 
 const STATUSES = ["Open", "Assigned", "On Progress", "Pending", "Resolved", "Closed", "Reopened"];
 
@@ -35,6 +35,9 @@ export default function TicketDetail() {
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [lightbox, setLightbox] = useState(null);
+  const [assignAdditional, setAssignAdditional] = useState([]);
+  const [collabOpen, setCollabOpen] = useState(false);
+  const [collabToAdd, setCollabToAdd] = useState("");
 
   const load = useCallback(async () => {
     const t = await api.get(`/tickets/${id}`);
@@ -53,7 +56,8 @@ export default function TicketDetail() {
   if (!ticket) return <div className="p-8 text-slate-500">Loading…</div>;
 
   const canAssign = ["admin", "manager", "supervisor"].includes(user.role);
-  const canWork = user.role === "technician" && ticket.technician_id === user.id;
+  const teamIds = ticket.technicians && ticket.technicians.length ? ticket.technicians : (ticket.technician_id ? [ticket.technician_id] : []);
+  const canWork = user.role === "technician" && teamIds.includes(user.id);
   const canManage = ["admin", "manager", "supervisor"].includes(user.role) || canWork;
   const canRate = user.role === "customer" && ticket.customer_id === user.id && ["Resolved", "Closed"].includes(ticket.status);
 
@@ -63,7 +67,21 @@ export default function TicketDetail() {
   };
   const doAssign = async () => {
     if (!assignTo) return;
-    try { await api.post(`/tickets/${id}/assign`, { technician_id: assignTo }); toast.success("Assigned"); setAssignOpen(false); load(); }
+    try {
+      await api.post(`/tickets/${id}/assign`, { technician_id: assignTo, additional: assignAdditional });
+      toast.success("Assigned"); setAssignOpen(false); setAssignAdditional([]); load();
+    }
+    catch (e) { toast.error(fmtApiError(e)); }
+  };
+  const addCollab = async () => {
+    if (!collabToAdd) return;
+    try {
+      await api.post(`/tickets/${id}/collaborators`, { technician_ids: [collabToAdd] });
+      toast.success("Collaborator added"); setCollabOpen(false); setCollabToAdd(""); load();
+    } catch (e) { toast.error(fmtApiError(e)); }
+  };
+  const removeCollab = async (uid) => {
+    try { await api.delete(`/tickets/${id}/collaborators/${uid}`); toast.success("Removed"); load(); }
     catch (e) { toast.error(fmtApiError(e)); }
   };
   const doResolve = async () => {
@@ -187,9 +205,34 @@ export default function TicketDetail() {
             </Card>
 
             <Card className="border-slate-200 shadow-none rounded-md">
-              <CardContent className="p-5 space-y-2 text-sm">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mb-2">Assignment</div>
-                <div><span className="text-slate-500 text-xs">Technician:</span> <b>{users[ticket.technician_id]?.name || "Unassigned"}</b></div>
+              <CardContent className="p-5 space-y-3 text-sm">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Assignment</div>
+                <div>
+                  <div className="text-slate-500 text-xs">Primary Technician (PIC)</div>
+                  <div className="font-semibold text-slate-900">{users[ticket.technician_id]?.name || "Unassigned"}</div>
+                </div>
+                {teamIds.length > 1 && (
+                  <div>
+                    <div className="text-slate-500 text-xs">Collaborators</div>
+                    <div className="mt-1 flex flex-wrap gap-1.5" data-testid="collaborators-list">
+                      {teamIds.filter(x => x !== ticket.technician_id).map(uid => (
+                        <span key={uid} data-testid={`collab-chip-${uid}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-slate-300 bg-slate-50 text-xs">
+                          {users[uid]?.name || uid.slice(0, 8)}
+                          {canAssign && (
+                            <button onClick={() => removeCollab(uid)} data-testid={`collab-remove-${uid}`} className="ml-1 text-slate-400 hover:text-red-600">
+                              <X size={11} />
+                            </button>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {canAssign && ticket.technician_id && (
+                  <Button data-testid="add-collab-btn" size="sm" variant="outline" onClick={() => setCollabOpen(true)} className="w-full">
+                    <UserPlus size={12} className="mr-1.5" /> Add Collaborator
+                  </Button>
+                )}
                 <div><span className="text-slate-500 text-xs">Customer:</span> <b>{users[ticket.customer_id]?.name || "-"}</b></div>
                 <div><span className="text-slate-500 text-xs">Department:</span> <b>{ticket.department || "-"}</b></div>
                 <div><span className="text-slate-500 text-xs">Created:</span> <b>{formatDate(ticket.created_at)}</b></div>
@@ -256,13 +299,55 @@ export default function TicketDetail() {
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
         <DialogContent data-testid="assign-dialog">
           <DialogHeader><DialogTitle>Assign Technician</DialogTitle></DialogHeader>
-          <Select value={assignTo} onValueChange={setAssignTo}>
-            <SelectTrigger data-testid="assign-select"><SelectValue placeholder="Select technician" /></SelectTrigger>
-            <SelectContent>{technicians.map(t => <SelectItem key={t.id} value={t.id}>{t.name} — {t.department || "-"}</SelectItem>)}</SelectContent>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs uppercase tracking-wider">Primary (PIC) — SLA & rating owner</Label>
+              <Select value={assignTo} onValueChange={setAssignTo}>
+                <SelectTrigger data-testid="assign-select" className="mt-1.5"><SelectValue placeholder="Select technician" /></SelectTrigger>
+                <SelectContent>{technicians.map(t => <SelectItem key={t.id} value={t.id}>{t.name} — {t.department || "-"}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs uppercase tracking-wider">Collaborators (optional)</Label>
+              <div className="mt-1.5 border border-slate-200 rounded-md p-2 space-y-1 max-h-40 overflow-y-auto">
+                {technicians.filter(t => t.id !== assignTo).map(t => (
+                  <label key={t.id} className="flex items-center gap-2 text-sm px-1 py-1 rounded hover:bg-slate-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      data-testid={`assign-collab-${t.id}`}
+                      checked={assignAdditional.includes(t.id)}
+                      onChange={(e) => setAssignAdditional(prev => e.target.checked ? [...prev, t.id] : prev.filter(x => x !== t.id))}
+                    />
+                    <span>{t.name}</span>
+                    <span className="text-xs text-slate-500 ml-auto">{t.department || "-"}</span>
+                  </label>
+                ))}
+                {technicians.filter(t => t.id !== assignTo).length === 0 && <div className="text-xs text-slate-500 px-1 py-1">Pick a primary first.</div>}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-1.5">Weighted KPI points are split equally across all technicians on the ticket.</div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAssignOpen(false); setAssignAdditional([]); }}>Cancel</Button>
+            <Button data-testid="confirm-assign" onClick={doAssign} className="bg-slate-900">Assign</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={collabOpen} onOpenChange={setCollabOpen}>
+        <DialogContent data-testid="collab-dialog">
+          <DialogHeader><DialogTitle>Add Collaborator</DialogTitle></DialogHeader>
+          <Select value={collabToAdd} onValueChange={setCollabToAdd}>
+            <SelectTrigger data-testid="collab-select"><SelectValue placeholder="Select technician" /></SelectTrigger>
+            <SelectContent>
+              {technicians.filter(t => !teamIds.includes(t.id)).map(t => (
+                <SelectItem key={t.id} value={t.id}>{t.name} — {t.department || "-"}</SelectItem>
+              ))}
+            </SelectContent>
           </Select>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAssignOpen(false)}>Cancel</Button>
-            <Button data-testid="confirm-assign" onClick={doAssign} className="bg-slate-900">Assign</Button>
+            <Button variant="outline" onClick={() => setCollabOpen(false)}>Cancel</Button>
+            <Button data-testid="confirm-add-collab" onClick={addCollab} className="bg-slate-900">Add</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

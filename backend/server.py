@@ -1549,6 +1549,115 @@ async def digest_preview(user=Depends(require_roles("admin", "manager"))):
 
 # ---------- Public Status Page ----------
 
+@api.get("/monitoring/mttr")
+async def monitoring_mttr(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    user=Depends(require_roles("admin", "manager", "supervisor")),
+):
+    """Aggregate MTTR (Mean Time To Resolve) across department / technician / priority + weekly trend."""
+    q: Dict[str, Any] = {"status": {"$in": ["Resolved", "Closed"]}}
+    if date_from or date_to:
+        rng = {}
+        if date_from: rng["$gte"] = date_from
+        if date_to: rng["$lte"] = date_to
+        q["created_at"] = rng
+    tickets = await db.tickets.find(q).to_list(5000)
+    users_map = {u["id"]: u for u in await db.users.find({}, {"_id": 0}).to_list(1000)}
+
+    def mttr(ts):
+        vals = [minutes_between(t["created_at"], t.get("resolved_at")) for t in ts if t.get("resolved_at")]
+        vals = [v for v in vals if v is not None]
+        return round(sum(vals) / len(vals), 1) if vals else 0
+
+    def resp(ts):
+        vals = [minutes_between(t["created_at"], t.get("first_response_at") or t.get("assigned_at")) for t in ts]
+        vals = [v for v in vals if v is not None]
+        return round(sum(vals) / len(vals), 1) if vals else 0
+
+    overall = mttr(tickets)
+    overall_response = resp(tickets)
+
+    # By technician (primary or collaborator counts)
+    tech_buckets: Dict[str, List[Dict[str, Any]]] = {}
+    for t in tickets:
+        ids = t.get("technicians") or ([t["technician_id"]] if t.get("technician_id") else [])
+        for tid in ids:
+            tech_buckets.setdefault(tid, []).append(t)
+    by_technician = []
+    for tid, ts in tech_buckets.items():
+        u = users_map.get(tid)
+        if not u or u.get("role") != "technician":
+            continue
+        by_technician.append({
+            "technician_id": tid,
+            "name": u["name"],
+            "department": u.get("department"),
+            "ticket_count": len(ts),
+            "mttr_min": mttr(ts),
+            "response_min": resp(ts),
+        })
+    by_technician.sort(key=lambda x: x["mttr_min"] if x["mttr_min"] > 0 else 1e12)
+
+    # By department (customer's department = the requesting side)
+    dept_buckets: Dict[str, List[Dict[str, Any]]] = {}
+    for t in tickets:
+        dept = t.get("department") or "Unknown"
+        dept_buckets.setdefault(dept, []).append(t)
+    by_department = [
+        {"department": d, "ticket_count": len(ts), "mttr_min": mttr(ts), "response_min": resp(ts)}
+        for d, ts in dept_buckets.items()
+    ]
+    by_department.sort(key=lambda x: -x["ticket_count"])
+
+    # By priority
+    prio_buckets: Dict[str, List[Dict[str, Any]]] = {}
+    for t in tickets:
+        prio_buckets.setdefault(t["priority"], []).append(t)
+    by_priority = []
+    for p in ["Critical", "High", "Medium", "Low"]:
+        ts = prio_buckets.get(p, [])
+        rules = await get_sla_rules()
+        target = rules.get(p, DEFAULT_SLA[p])["resolution"]
+        by_priority.append({
+            "priority": p,
+            "ticket_count": len(ts),
+            "mttr_min": mttr(ts),
+            "target_min": target,
+            "compliance_pct": round(sum(1 for t in ts if (minutes_between(t["created_at"], t.get("resolved_at")) or 0) <= target) / len(ts) * 100, 1) if ts else 0,
+        })
+
+    # Weekly trend (last 12 weeks)
+    now = datetime.now(timezone.utc)
+    weeks: List[Dict[str, Any]] = []
+    for i in range(11, -1, -1):
+        end = now - timedelta(days=i * 7)
+        start = end - timedelta(days=7)
+        w_tickets = [t for t in tickets if start.isoformat() <= t["created_at"] < end.isoformat()]
+        weeks.append({
+            "week": end.strftime("%Y-W%V"),
+            "label": end.strftime("%d %b"),
+            "mttr_min": mttr(w_tickets),
+            "response_min": resp(w_tickets),
+            "ticket_count": len(w_tickets),
+        })
+
+    fastest = by_technician[:3]
+    slowest = [t for t in reversed(by_technician) if t["mttr_min"] > 0][:3]
+
+    return {
+        "period": {"from": date_from, "to": date_to},
+        "overall_mttr_min": overall,
+        "overall_response_min": overall_response,
+        "total_resolved": len(tickets),
+        "by_technician": by_technician,
+        "by_department": by_department,
+        "by_priority": by_priority,
+        "weekly_trend": weeks,
+        "fastest": fastest,
+        "slowest": slowest,
+    }
+
 @api.get("/public/status")
 async def public_status():
     """Public unauthenticated status endpoint for customers."""

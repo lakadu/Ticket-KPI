@@ -4,21 +4,22 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
   ChartBar, Ticket, Users, UsersThree, Tag, GearSix, ClipboardText,
-  ListChecks, SignOut, ChartLineUp, Warning, Article, Trophy
+  ListChecks, SignOut, ChartLineUp, Warning, Article, Trophy, ChartPieSlice
 } from "@phosphor-icons/react";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: ChartBar, roles: ["admin", "manager", "supervisor", "technician", "customer"] },
-  { to: "/tickets", label: "Tickets", icon: Ticket, roles: ["admin", "manager", "supervisor", "technician"] },
-  { to: "/my-tickets", label: "My Tickets", icon: ClipboardText, roles: ["customer"] },
-  { to: "/tickets/new", label: "New Ticket", icon: Warning, roles: ["admin", "manager", "supervisor", "technician", "customer"] },
-  { to: "/kpi", label: "KPI Scores", icon: ChartLineUp, roles: ["admin", "manager", "supervisor", "technician"] },
+  { to: "/tickets", label: "Daftar Ticket", icon: Ticket, roles: ["admin", "manager", "supervisor", "technician"] },
+  { to: "/my-tickets", label: "Ticket Saya", icon: ClipboardText, roles: ["customer"] },
+  { to: "/tickets/new", label: "Buat Ticket", icon: Warning, roles: ["admin", "manager", "supervisor", "technician", "customer"] },
+  { to: "/monitoring", label: "Monitoring", icon: ChartPieSlice, roles: ["admin", "manager", "supervisor"] },
+  { to: "/kpi", label: "Skor KPI", icon: ChartLineUp, roles: ["admin", "manager", "supervisor", "technician"] },
   { to: "/leaderboard", label: "Leaderboard", icon: Trophy, roles: ["admin", "manager", "supervisor", "technician", "customer"] },
-  { to: "/reports", label: "Reports", icon: ListChecks, roles: ["admin", "manager", "supervisor"] },
-  { to: "/users", label: "Users", icon: Users, roles: ["admin", "manager"] },
-  { to: "/customers", label: "Customers", icon: UsersThree, roles: ["admin", "manager", "supervisor"] },
-  { to: "/categories", label: "Categories", icon: Tag, roles: ["admin", "manager"] },
-  { to: "/settings", label: "Settings", icon: GearSix, roles: ["admin", "manager"] },
+  { to: "/reports", label: "Laporan", icon: ListChecks, roles: ["admin", "manager", "supervisor"] },
+  { to: "/users", label: "Pengguna", icon: Users, roles: ["admin", "manager"] },
+  { to: "/customers", label: "Pelanggan", icon: UsersThree, roles: ["admin", "manager", "supervisor"] },
+  { to: "/categories", label: "Kategori", icon: Tag, roles: ["admin", "manager"] },
+  { to: "/settings", label: "Pengaturan", icon: GearSix, roles: ["admin", "manager"] },
   { to: "/audit-log", label: "Audit Log", icon: Article, roles: ["admin", "manager"] },
 ];
 

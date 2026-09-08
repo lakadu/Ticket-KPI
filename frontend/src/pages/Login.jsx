@@ -13,8 +13,8 @@ const DEMO = [
   { role: "Admin", user: "admin", pwd: "admin123" },
   { role: "Manager", user: "manager", pwd: "password123" },
   { role: "Supervisor", user: "supervisor", pwd: "password123" },
-  { role: "Technician", user: "tech1", pwd: "password123" },
-  { role: "Customer", user: "customer1", pwd: "password123" },
+  { role: "Teknisi", user: "tech1", pwd: "password123" },
+  { role: "Pelanggan", user: "customer1", pwd: "password123" },
 ];
 
 export default function Login() {
@@ -35,7 +35,7 @@ export default function Login() {
     setBusy(true);
     try {
       await login(identifier, password);
-      toast.success("Welcome back!");
+      toast.success("Selamat datang kembali!");
       nav(from, { replace: true });
     } catch (err) {
       toast.error(fmtApiError(err));
@@ -57,10 +57,10 @@ export default function Login() {
         <div className="relative z-10 space-y-6 max-w-md">
           <div className="text-[11px] uppercase tracking-[0.3em] text-slate-400">IT Service Management</div>
           <h1 className="text-4xl xl:text-5xl font-display font-bold leading-tight tracking-tight">
-            Ticketing, SLA & KPI — <span className="text-emerald-400">under one roof.</span>
+            Ticketing, SLA & KPI — <span className="text-emerald-400">dalam satu app.</span>
           </h1>
           <p className="text-slate-300 leading-relaxed text-sm">
-            Kelola ticket, teknisi, dan performance secara real-time. KPI dihitung otomatis dari data ticketing yang bisa Anda audit.
+            Kelola ticket, teknisi, dan performance secara real-time. KPI dihitung otomatis dari data ticket yang bisa Anda audit.
           </p>
           <div className="grid grid-cols-3 gap-3 pt-4">
             {["SLA Compliance", "Weighted Points", "KPI Score"].map((k) => (
@@ -71,20 +71,20 @@ export default function Login() {
             ))}
           </div>
         </div>
-        <div className="relative z-10 text-xs text-slate-500">© {new Date().getFullYear()} ServiceOps · <a href="/status" className="hover:text-slate-300 underline underline-offset-4" data-testid="status-link">Public status</a></div>
+        <div className="relative z-10 text-xs text-slate-500">© {new Date().getFullYear()} ServiceOps · <a href="/status" className="hover:text-slate-300 underline underline-offset-4" data-testid="status-link">Status publik</a></div>
       </div>
 
       <div className="flex items-center justify-center p-6 lg:p-12">
         <div className="w-full max-w-md">
           <div className="mb-8">
-            <div className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Sign in</div>
-            <h2 className="font-display text-3xl font-bold mt-1 text-slate-900">Welcome back</h2>
-            <p className="text-sm text-slate-600 mt-2">Login with your email <span className="text-slate-400">or</span> username.</p>
+            <div className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Masuk</div>
+            <h2 className="font-display text-3xl font-bold mt-1 text-slate-900">Selamat datang kembali</h2>
+            <p className="text-sm text-slate-600 mt-2">Login pakai email <span className="text-slate-400">atau</span> username.</p>
           </div>
 
           <form onSubmit={submit} className="space-y-4" data-testid="login-form">
             <div>
-              <Label className="text-xs uppercase tracking-wider text-slate-600">Email or Username</Label>
+              <Label className="text-xs uppercase tracking-wider text-slate-600">Email atau Username</Label>
               <div className="relative mt-1.5">
                 <Envelope size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <Input data-testid="login-identifier" value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="pl-9" placeholder="admin@itsm.local" required />
@@ -98,12 +98,12 @@ export default function Login() {
               </div>
             </div>
             <Button data-testid="login-submit" type="submit" className="w-full bg-slate-900 hover:bg-slate-800" disabled={busy}>
-              {busy ? "Signing in…" : "Sign in"}
+              {busy ? "Sedang masuk…" : "Masuk"}
             </Button>
           </form>
 
           <div className="mt-10 border-t border-slate-200 pt-6">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mb-3">Demo accounts (click to fill)</div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mb-3">Akun demo (klik untuk auto-isi)</div>
             <div className="grid grid-cols-1 gap-1.5">
               {DEMO.map((d) => (
                 <button

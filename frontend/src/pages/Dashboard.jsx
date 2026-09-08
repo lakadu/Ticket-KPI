@@ -53,33 +53,33 @@ export default function Dashboard() {
   return (
     <>
       <PageHeader
-        eyebrow="Overview"
-        title={`Hello, ${user.name.split(" ")[0]}`}
-        subtitle="Live operational overview across tickets, SLA, and technician performance."
+        eyebrow="Ringkasan"
+        title={`Halo, ${user.name.split(" ")[0]} 👋`}
+        subtitle="Kondisi ticket, SLA, dan performa teknisi secara real-time."
       />
       <PageBody>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4" data-testid="dashboard-kpis">
           <KpiCard testId="kpi-total" label="Total Ticket" value={data.total} icon={Ticket} />
           <KpiCard testId="kpi-open" label="Open" value={data.counts.Open || 0} icon={Warning} tone="warning" />
-          <KpiCard testId="kpi-progress" label="On Progress" value={data.counts["On Progress"] || 0} icon={Timer} />
+          <KpiCard testId="kpi-progress" label="Dikerjakan" value={data.counts["On Progress"] || 0} icon={Timer} />
           <KpiCard testId="kpi-resolved" label="Resolved" value={data.counts.Resolved || 0} icon={CheckCircle} tone="success" />
           <KpiCard testId="kpi-closed" label="Closed" value={data.counts.Closed || 0} icon={CheckCircle} />
           <KpiCard testId="kpi-reopened" label="Reopened" value={data.counts.Reopened || 0} icon={Warning} tone="danger" />
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <KpiCard testId="kpi-sla" label="SLA Compliance" value={`${data.sla_compliance}%`} sub={`${data.sla_violation} violations`} icon={TrendUp} tone={data.sla_compliance >= 90 ? "success" : data.sla_compliance >= 75 ? "warning" : "danger"} />
-          <KpiCard testId="kpi-response" label="Avg Response" value={formatMinutes(data.avg_response_min)} icon={Timer} />
-          <KpiCard testId="kpi-resolution" label="Avg Resolution" value={formatMinutes(data.avg_resolution_min)} icon={Timer} />
-          <KpiCard testId="kpi-rating" label="Avg Rating" value={data.avg_rating || 0} sub="out of 5.00" icon={Star} tone="success" />
+          <KpiCard testId="kpi-sla" label="SLA Compliance" value={`${data.sla_compliance}%`} sub={`${data.sla_violation} pelanggaran`} icon={TrendUp} tone={data.sla_compliance >= 90 ? "success" : data.sla_compliance >= 75 ? "warning" : "danger"} />
+          <KpiCard testId="kpi-response" label="Rata-rata Response" value={formatMinutes(data.avg_response_min)} icon={Timer} />
+          <KpiCard testId="kpi-resolution" label="Rata-rata Resolution" value={formatMinutes(data.avg_resolution_min)} icon={Timer} />
+          <KpiCard testId="kpi-rating" label="Rata-rata Rating" value={data.avg_rating || 0} sub="dari 5.00" icon={Star} tone="success" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <Card className="lg:col-span-2 border-slate-200 shadow-none rounded-md">
             <CardContent className="p-5">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="font-display font-semibold text-slate-900">Tickets per Month</h3>
-                <div className="text-xs text-slate-500">Last months</div>
+                <h3 className="font-display font-semibold text-slate-900">Ticket per Bulan</h3>
+                <div className="text-xs text-slate-500">Beberapa bulan terakhir</div>
               </div>
               <div className="h-64">
                 <ResponsiveContainer>
@@ -97,7 +97,7 @@ export default function Dashboard() {
 
           <Card className="border-slate-200 shadow-none rounded-md">
             <CardContent className="p-5">
-              <h3 className="font-display font-semibold text-slate-900 mb-4">By Priority</h3>
+              <h3 className="font-display font-semibold text-slate-900 mb-4">Berdasarkan Priority</h3>
               <div className="h-64">
                 <ResponsiveContainer>
                   <PieChart>
@@ -116,7 +116,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card className="border-slate-200 shadow-none rounded-md">
             <CardContent className="p-5">
-              <h3 className="font-display font-semibold text-slate-900 mb-4">By Category</h3>
+              <h3 className="font-display font-semibold text-slate-900 mb-4">Berdasarkan Kategori</h3>
               <div className="h-64">
                 <ResponsiveContainer>
                   <BarChart data={data.by_category} layout="vertical">
@@ -133,7 +133,7 @@ export default function Dashboard() {
 
           <Card className="border-slate-200 shadow-none rounded-md">
             <CardContent className="p-5">
-              <h3 className="font-display font-semibold text-slate-900 mb-4">By Technician</h3>
+              <h3 className="font-display font-semibold text-slate-900 mb-4">Berdasarkan Teknisi</h3>
               <div className="h-64">
                 <ResponsiveContainer>
                   <BarChart data={data.by_technician}>
@@ -154,7 +154,7 @@ export default function Dashboard() {
             <CardContent className="p-5">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-display font-semibold text-slate-900">Top Performing Technicians</h3>
-                <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500">KPI Score</span>
+                <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Skor KPI</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {kpiTop.slice(0, 3).map((t, i) => (
@@ -184,7 +184,7 @@ export default function Dashboard() {
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-display font-semibold text-slate-900">Ticket Aging (Open)</h3>
                 <span className="text-xs text-slate-500">
-                  <span className="text-red-600 font-semibold">{aging.at_risk}</span> at risk of SLA breach
+                  <span className="text-red-600 font-semibold">{aging.at_risk}</span> berpotensi lewat SLA
                 </span>
               </div>
               <div className="grid grid-cols-3 md:grid-cols-6 gap-3">

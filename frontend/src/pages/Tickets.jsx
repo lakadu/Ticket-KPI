@@ -46,12 +46,12 @@ export default function Tickets() {
   return (
     <>
       <PageHeader
-        eyebrow={user.role === "customer" ? "My requests" : "Queue"}
-        title={user.role === "customer" ? "My Tickets" : "All Tickets"}
-        subtitle={`${tickets.length} ticket${tickets.length !== 1 ? "s" : ""} matching current filters`}
+        eyebrow={user.role === "customer" ? "Ticket saya" : "Antrian"}
+        title={user.role === "customer" ? "Ticket Saya" : "Semua Ticket"}
+        subtitle={`${tickets.length} ticket sesuai filter saat ini`}
         actions={
           <Button data-testid="new-ticket-btn" onClick={() => nav("/tickets/new")} className="bg-slate-900 hover:bg-slate-800">
-            <Plus size={16} className="mr-1.5" /> New Ticket
+            <Plus size={16} className="mr-1.5" /> Ticket Baru
           </Button>
         }
       />
@@ -61,23 +61,23 @@ export default function Tickets() {
             <div className="flex flex-wrap gap-3">
               <div className="relative flex-1 min-w-[220px]">
                 <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <Input data-testid="search-tickets" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && load()} placeholder="Search subject, number, description…" className="pl-9" />
+                <Input data-testid="search-tickets" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && load()} placeholder="Cari subject, nomor, deskripsi…" className="pl-9" />
               </div>
               <Select value={status} onValueChange={setStatus}>
                 <SelectTrigger data-testid="filter-status" className="w-[160px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="all">Semua status</SelectItem>
                   {STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={priority} onValueChange={setPriority}>
                 <SelectTrigger data-testid="filter-priority" className="w-[140px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All priorities</SelectItem>
+                  <SelectItem value="all">Semua priority</SelectItem>
                   {PRIOS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Button variant="outline" onClick={load} data-testid="apply-filters">Search</Button>
+              <Button variant="outline" onClick={load} data-testid="apply-filters">Cari</Button>
             </div>
           </CardContent>
         </Card>
@@ -87,13 +87,13 @@ export default function Tickets() {
             <Table data-testid="tickets-table">
               <TableHeader>
                 <TableRow className="bg-slate-50">
-                  <TableHead className="text-[10px] uppercase tracking-widest">Number</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-widest">Nomor</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-widest">Subject</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-widest">Priority</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-widest">Status</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-widest">SLA</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-widest">Age / Resolution</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-widest">Created</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-widest">Umur / Waktu Selesai</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-widest">Dibuat</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -106,24 +106,24 @@ export default function Tickets() {
                     <TableCell><SLAIndicator status={t.sla.sla_status} /></TableCell>
                     <TableCell className="text-xs text-slate-600 tabular-nums">
                       {t.sla.resolution_time != null
-                        ? <>Resolved in <b>{formatMinutes(t.sla.resolution_time)}</b></>
-                        : <>Age <b>{formatMinutes(t.sla.age_minutes)}</b></>}
+                        ? <>Selesai dalam <b>{formatMinutes(t.sla.resolution_time)}</b></>
+                        : <>Umur <b>{formatMinutes(t.sla.age_minutes)}</b></>}
                     </TableCell>
                     <TableCell className="text-xs text-slate-500">{formatDate(t.created_at)}</TableCell>
                   </TableRow>
                 ))}
                 {tickets.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-8">No tickets found.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-8">Belum ada ticket.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
           </div>
           {tickets.length > perPage && (
             <div className="flex justify-between items-center p-4 border-t border-slate-200">
-              <div className="text-xs text-slate-500">Page {page} of {totalPages}</div>
+              <div className="text-xs text-slate-500">Halaman {page} dari {totalPages}</div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
-                <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
+                <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Sebelumnya</Button>
+                <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Berikutnya</Button>
               </div>
             </div>
           )}

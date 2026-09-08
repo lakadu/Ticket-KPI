@@ -115,18 +115,18 @@ export default function TicketDetail() {
           )}
           <span className="text-xs text-slate-500">Weight: <b>{ticket.weight}</b> pt</span>
         </div>}
-        actions={<Button variant="ghost" onClick={() => nav(-1)}><ArrowLeft size={14} className="mr-1" /> Back</Button>}
+        actions={<Button variant="ghost" onClick={() => nav(-1)}><ArrowLeft size={14} className="mr-1" /> Kembali</Button>}
       />
       <PageBody>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             <Card className="border-slate-200 shadow-none rounded-md">
               <CardContent className="p-6 space-y-3">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Description</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Deskripsi</div>
                 <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">{ticket.description}</p>
                 {ticket.attachments?.length > 0 && (
                   <div className="pt-3 border-t border-slate-100">
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mb-2">Attachments</div>
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mb-2">Lampiran</div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                       {ticket.attachments.map((a, i) => (
                         a.type?.startsWith("image/") ? (
@@ -147,12 +147,12 @@ export default function TicketDetail() {
             {(ticket.resolution || ticket.root_cause) && (
               <Card className="border-emerald-200 shadow-none rounded-md bg-emerald-50/40">
                 <CardContent className="p-6 space-y-2">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-emerald-700">Resolution</div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-emerald-700">Penyelesaian</div>
                   <div className="text-xs text-slate-500">Root Cause</div>
                   <p className="text-sm text-slate-800">{ticket.root_cause}</p>
-                  <div className="text-xs text-slate-500 mt-2">Action</div>
+                  <div className="text-xs text-slate-500 mt-2">Tindakan</div>
                   <p className="text-sm text-slate-800">{ticket.resolution}</p>
-                  {ticket.technician_notes && <><div className="text-xs text-slate-500 mt-2">Notes</div><p className="text-sm text-slate-700">{ticket.technician_notes}</p></>}
+                  {ticket.technician_notes && <><div className="text-xs text-slate-500 mt-2">Catatan Teknisi</div><p className="text-sm text-slate-700">{ticket.technician_notes}</p></>}
                 </CardContent>
               </Card>
             )}
@@ -160,7 +160,7 @@ export default function TicketDetail() {
             {ticket.rating && (
               <Card className="border-slate-200 shadow-none rounded-md">
                 <CardContent className="p-6">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mb-2">Customer Rating</div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mb-2">Rating Pelanggan</div>
                   <div className="flex items-center gap-2">
                     {[1,2,3,4,5].map(i => <Star key={i} size={20} weight={i <= ticket.rating ? "fill" : "regular"} className={i <= ticket.rating ? "text-amber-500" : "text-slate-300"} />)}
                     <span className="font-display text-2xl font-bold ml-2">{ticket.rating}/5</span>
@@ -172,7 +172,7 @@ export default function TicketDetail() {
 
             <Card className="border-slate-200 shadow-none rounded-md">
               <CardContent className="p-6">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mb-4">Activity Timeline</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mb-4">Timeline Aktivitas</div>
                 <ol className="space-y-3">
                   {activities.map(a => (
                     <li key={a.id} className="flex gap-3">
@@ -196,24 +196,24 @@ export default function TicketDetail() {
               <CardContent className="p-5 space-y-3">
                 <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">SLA</div>
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div><div className="text-xs text-slate-500">Response Target</div><div className="font-semibold tabular-nums">{formatMinutes(sla.response_target)}</div></div>
-                  <div><div className="text-xs text-slate-500">Resolution Target</div><div className="font-semibold tabular-nums">{formatMinutes(sla.resolution_target)}</div></div>
-                  <div><div className="text-xs text-slate-500">Response</div><div className="font-semibold tabular-nums">{formatMinutes(sla.response_time)}</div></div>
-                  <div><div className="text-xs text-slate-500">Resolution</div><div className="font-semibold tabular-nums">{formatMinutes(sla.resolution_time)}</div></div>
+                  <div><div className="text-xs text-slate-500">Target Response</div><div className="font-semibold tabular-nums">{formatMinutes(sla.response_target)}</div></div>
+                  <div><div className="text-xs text-slate-500">Target Resolution</div><div className="font-semibold tabular-nums">{formatMinutes(sla.resolution_target)}</div></div>
+                  <div><div className="text-xs text-slate-500">Response Aktual</div><div className="font-semibold tabular-nums">{formatMinutes(sla.response_time)}</div></div>
+                  <div><div className="text-xs text-slate-500">Resolution Aktual</div><div className="font-semibold tabular-nums">{formatMinutes(sla.resolution_time)}</div></div>
                 </div>
               </CardContent>
             </Card>
 
             <Card className="border-slate-200 shadow-none rounded-md">
               <CardContent className="p-5 space-y-3 text-sm">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Assignment</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Penugasan</div>
                 <div>
-                  <div className="text-slate-500 text-xs">Primary Technician (PIC)</div>
-                  <div className="font-semibold text-slate-900">{users[ticket.technician_id]?.name || "Unassigned"}</div>
+                  <div className="text-slate-500 text-xs">Teknisi Utama (PIC)</div>
+                  <div className="font-semibold text-slate-900">{users[ticket.technician_id]?.name || "Belum ditugaskan"}</div>
                 </div>
                 {teamIds.length > 1 && (
                   <div>
-                    <div className="text-slate-500 text-xs">Collaborators</div>
+                    <div className="text-slate-500 text-xs">Rekan Teknisi</div>
                     <div className="mt-1 flex flex-wrap gap-1.5" data-testid="collaborators-list">
                       {teamIds.filter(x => x !== ticket.technician_id).map(uid => (
                         <span key={uid} data-testid={`collab-chip-${uid}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-slate-300 bg-slate-50 text-xs">
@@ -230,23 +230,23 @@ export default function TicketDetail() {
                 )}
                 {canAssign && ticket.technician_id && (
                   <Button data-testid="add-collab-btn" size="sm" variant="outline" onClick={() => setCollabOpen(true)} className="w-full">
-                    <UserPlus size={12} className="mr-1.5" /> Add Collaborator
+                    <UserPlus size={12} className="mr-1.5" /> Tambah Rekan Teknisi
                   </Button>
                 )}
-                <div><span className="text-slate-500 text-xs">Customer:</span> <b>{users[ticket.customer_id]?.name || "-"}</b></div>
-                <div><span className="text-slate-500 text-xs">Department:</span> <b>{ticket.department || "-"}</b></div>
-                {ticket.reported_via && <div><span className="text-slate-500 text-xs">Reported via:</span> <b>{ticket.reported_via}</b></div>}
-                <div><span className="text-slate-500 text-xs">Created:</span> <b>{formatDate(ticket.created_at)}</b></div>
-                <div><span className="text-slate-500 text-xs">Reopens:</span> <b>{ticket.reopen_count}</b></div>
+                <div><span className="text-slate-500 text-xs">Pelanggan:</span> <b>{users[ticket.customer_id]?.name || "-"}</b></div>
+                <div><span className="text-slate-500 text-xs">Departemen:</span> <b>{ticket.department || "-"}</b></div>
+                {ticket.reported_via && <div><span className="text-slate-500 text-xs">Dilaporkan via:</span> <b>{ticket.reported_via}</b></div>}
+                <div><span className="text-slate-500 text-xs">Dibuat:</span> <b>{formatDate(ticket.created_at)}</b></div>
+                <div><span className="text-slate-500 text-xs">Reopen:</span> <b>{ticket.reopen_count}</b></div>
               </CardContent>
             </Card>
 
             {canAssign && (
               <Card className="border-slate-200 shadow-none rounded-md">
                 <CardContent className="p-5 space-y-3">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Actions</div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Aksi</div>
                   <Button data-testid="assign-btn" onClick={() => setAssignOpen(true)} className="w-full bg-slate-900 hover:bg-slate-800">
-                    <UserIcon size={14} className="mr-1.5" /> Assign Technician
+                    <UserIcon size={14} className="mr-1.5" /> Tugaskan Teknisi
                   </Button>
                 </CardContent>
               </Card>
@@ -255,14 +255,14 @@ export default function TicketDetail() {
             {canManage && (
               <Card className="border-slate-200 shadow-none rounded-md">
                 <CardContent className="p-5 space-y-2">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Change Status</div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Ubah Status</div>
                   <div className="grid grid-cols-2 gap-2">
                     {STATUSES.filter(s => s !== "Closed").map(s => (
                       <Button key={s} data-testid={`status-${s.replace(/\s+/g,"-").toLowerCase()}`} size="sm" variant="outline" onClick={() => changeStatus(s)}>{s}</Button>
                     ))}
                   </div>
                   <Button data-testid="open-resolve-btn" onClick={() => setResolveOpen(true)} className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700">
-                    <CheckCircle size={14} className="mr-1.5" /> Resolve Ticket
+                    <CheckCircle size={14} className="mr-1.5" /> Selesaikan Ticket
                   </Button>
                 </CardContent>
               </Card>
@@ -271,7 +271,7 @@ export default function TicketDetail() {
             {canRate && !ticket.rating && (
               <Card className="border-slate-200 shadow-none rounded-md">
                 <CardContent className="p-5 space-y-3">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Rate this ticket</div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Beri rating ticket ini</div>
                   <div className="flex gap-1">
                     {[1,2,3,4,5].map(i => (
                       <button key={i} data-testid={`rate-${i}`} onClick={() => setRating(i)} className="p-1 transition-transform hover:scale-110">
@@ -279,14 +279,14 @@ export default function TicketDetail() {
                       </button>
                     ))}
                   </div>
-                  <Textarea data-testid="rate-feedback" placeholder="Feedback (optional)" value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={3} />
-                  <Button data-testid="submit-rate" onClick={doRate} className="w-full bg-slate-900 hover:bg-slate-800">Submit Rating</Button>
+                  <Textarea data-testid="rate-feedback" placeholder="Feedback (opsional)" value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={3} />
+                  <Button data-testid="submit-rate" onClick={doRate} className="w-full bg-slate-900 hover:bg-slate-800">Kirim Rating</Button>
                 </CardContent>
               </Card>
             )}
 
             {ticket.status === "Resolved" && ["admin","manager","supervisor"].includes(user.role) && (
-              <Button data-testid="close-ticket-btn" onClick={() => changeStatus("Closed")} className="w-full">Mark Closed</Button>
+              <Button data-testid="close-ticket-btn" onClick={() => changeStatus("Closed")} className="w-full">Tandai Closed</Button>
             )}
             {ticket.status === "Closed" && ["admin","manager","supervisor"].includes(user.role) && (
               <Button data-testid="reopen-ticket-btn" variant="outline" onClick={() => changeStatus("Reopened")} className="w-full">

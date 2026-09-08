@@ -13,7 +13,7 @@ import { StatusBadge, PriorityBadge, SLAIndicator } from "@/components/Badges";
 import { formatDate, formatMinutes } from "@/lib/format";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { Star, CheckCircle, ArrowsClockwise, ArrowLeft, User as UserIcon, Clock } from "@phosphor-icons/react";
+import { Star, CheckCircle, ArrowsClockwise, ArrowLeft, User as UserIcon, Clock, X } from "@phosphor-icons/react";
 
 const STATUSES = ["Open", "Assigned", "On Progress", "Pending", "Resolved", "Closed", "Reopened"];
 
@@ -34,6 +34,7 @@ export default function TicketDetail() {
   const [docOk, setDocOk] = useState(true);
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState("");
+  const [lightbox, setLightbox] = useState(null);
 
   const load = useCallback(async () => {
     const t = await api.get(`/tickets/${id}`);
@@ -106,10 +107,10 @@ export default function TicketDetail() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                       {ticket.attachments.map((a, i) => (
                         a.type?.startsWith("image/") ? (
-                          <a key={i} href={a.data} target="_blank" rel="noreferrer" className="block border border-slate-200 rounded-md overflow-hidden">
+                          <button key={i} data-testid={`attach-thumb-${i}`} onClick={() => setLightbox(a)} className="block border border-slate-200 rounded-md overflow-hidden text-left hover:border-slate-500 transition-colors">
                             <img src={a.data} alt={a.name} className="w-full h-24 object-cover" />
                             <div className="text-[10px] text-slate-500 truncate p-1">{a.name}</div>
-                          </a>
+                          </button>
                         ) : (
                           <div key={i} className="border border-slate-200 rounded p-2 text-xs">{a.name}</div>
                         )
@@ -288,6 +289,18 @@ export default function TicketDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {lightbox && (
+        <div data-testid="lightbox" onClick={() => setLightbox(null)} className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-6 cursor-zoom-out">
+          <button data-testid="lightbox-close" onClick={() => setLightbox(null)} className="absolute top-4 right-4 text-white/80 hover:text-white p-2">
+            <X size={28} />
+          </button>
+          <div className="max-w-[90vw] max-h-[90vh] flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
+            <img src={lightbox.data} alt={lightbox.name} className="max-w-full max-h-[85vh] object-contain rounded border border-white/10" />
+            <div className="text-white/70 text-sm font-mono">{lightbox.name} · {(lightbox.size / 1024).toFixed(0)} KB</div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -84,10 +84,23 @@ function KPISection() {
 
 function IntegrationsSection() {
   const [cfg, setCfg] = useState(null);
+  const [testing, setTesting] = useState(false);
   useEffect(() => { api.get("/settings/integrations").then(r => setCfg(r.data)); }, []);
   const save = async () => {
     try { await api.put("/settings/integrations", cfg); toast.success("Integrations saved"); }
     catch (e) { toast.error(fmtApiError(e)); }
+  };
+  const sendTest = async () => {
+    setTesting(true);
+    try {
+      const { data } = await api.post("/notifications/test");
+      const parts = [];
+      parts.push(`Telegram: ${data.telegram.ok ? "✅" : `❌ ${data.telegram.reason || data.telegram.status || data.telegram.error || "failed"}`}`);
+      parts.push(`WhatsApp: ${data.whatsapp.ok ? "✅" : `❌ ${data.whatsapp.reason || data.whatsapp.status || data.whatsapp.error || "failed"}`}`);
+      const anyOk = data.telegram.ok || data.whatsapp.ok;
+      (anyOk ? toast.success : toast.error)(parts.join("  ·  "));
+    } catch (e) { toast.error(fmtApiError(e)); }
+    finally { setTesting(false); }
   };
   if (!cfg) return null;
   return (
@@ -109,7 +122,10 @@ function IntegrationsSection() {
           </div>
           <div className="text-xs text-slate-500 mt-3">These tokens are stored in the database and can be filled in later — leave blank to disable notifications.</div>
         </div>
-        <Button data-testid="int-save" onClick={save} className="bg-slate-900">Save Integrations</Button>
+        <div className="flex gap-2 pt-4 border-t border-slate-100">
+          <Button data-testid="int-save" onClick={save} className="bg-slate-900">Save Integrations</Button>
+          <Button data-testid="int-test" variant="outline" onClick={sendTest} disabled={testing}>{testing ? "Sending…" : "Send Test Notification"}</Button>
+        </div>
       </CardContent>
     </Card>
   );

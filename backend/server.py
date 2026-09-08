@@ -9,7 +9,10 @@ import uuid
 import io
 import csv
 import base64
+import hmac
+import asyncio
 import logging
+import httpx
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Any, Dict
 
@@ -526,6 +529,12 @@ async def assign_ticket(tid: str, body: TicketAssign, user=Depends(require_roles
         "type": "assigned", "description": f"Assigned to {tech['name']}", "timestamp": now,
     })
     await log_audit(user["id"], "assign_ticket", "ticket", tid, {"technician_id": body.technician_id})
+    await notify_all(
+        f"🎫 <b>Ticket Assigned</b>\n"
+        f"{t['number']} — {t['subject']}\n"
+        f"Priority: {t['priority']}\n"
+        f"Assigned to: {tech['name']}"
+    )
     return {"ok": True}
 
 @api.post("/tickets/{tid}/status")
@@ -1160,6 +1169,230 @@ async def on_startup():
 @app.on_event("shutdown")
 async def on_shutdown():
     client.close()
+
+# ---------- Notifications ----------
+
+async def get_integrations_cfg() -> Dict[str, Any]:
+    doc = await db.settings.find_one({"key": "integrations"})
+    return doc["value"] if doc else {}
+
+async def send_telegram(text: str) -> Dict[str, Any]:
+    cfg = await get_integrations_cfg()
+    token = (cfg.get("telegram_bot_token") or "").strip()
+    chat = (cfg.get("telegram_chat_id") or "").strip()
+    if not token or not chat:
+        return {"ok": False, "reason": "not_configured"}
+    try:
+        async with httpx.AsyncClient(timeout=8) as h:
+            r = await h.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": chat, "text": text, "parse_mode": "HTML"},
+            )
+            return {"ok": r.status_code == 200, "status": r.status_code, "body": r.text[:200]}
+    except Exception as e:
+        logger.warning(f"telegram error: {e}")
+        return {"ok": False, "error": str(e)}
+
+async def send_whatsapp(text: str, target: Optional[str] = None) -> Dict[str, Any]:
+    cfg = await get_integrations_cfg()
+    provider = (cfg.get("whatsapp_provider") or "").strip().lower()
+    api_key = (cfg.get("whatsapp_api_key") or "").strip()
+    sender = (cfg.get("whatsapp_sender") or "").strip()
+    if not provider or not api_key or not sender:
+        return {"ok": False, "reason": "not_configured"}
+    dest = target or sender
+    try:
+        async with httpx.AsyncClient(timeout=8) as h:
+            if provider == "fonnte":
+                r = await h.post(
+                    "https://api.fonnte.com/send",
+                    headers={"Authorization": api_key},
+                    data={"target": dest, "message": text},
+                )
+            elif provider == "wablas":
+                r = await h.post(
+                    "https://console.wablas.com/api/send-message",
+                    headers={"Authorization": api_key},
+                    data={"phone": dest, "message": text},
+                )
+            elif provider == "twilio":
+                # Twilio format: api_key is "SID:AUTH_TOKEN"
+                sid_auth = api_key.split(":", 1)
+                if len(sid_auth) != 2:
+                    return {"ok": False, "reason": "twilio_key_should_be_SID:AUTH_TOKEN"}
+                r = await h.post(
+                    f"https://api.twilio.com/2010-04-01/Accounts/{sid_auth[0]}/Messages.json",
+                    auth=(sid_auth[0], sid_auth[1]),
+                    data={"From": f"whatsapp:{sender}", "To": f"whatsapp:{dest}", "Body": text},
+                )
+            else:
+                return {"ok": False, "reason": f"unknown_provider:{provider}"}
+            return {"ok": r.status_code < 400, "status": r.status_code, "body": r.text[:200]}
+    except Exception as e:
+        logger.warning(f"whatsapp error: {e}")
+        return {"ok": False, "error": str(e)}
+
+async def notify_all(text: str, target: Optional[str] = None):
+    """Fire-and-forget notification to both channels."""
+    async def _run():
+        await asyncio.gather(send_telegram(text), send_whatsapp(text, target), return_exceptions=True)
+    asyncio.create_task(_run())
+
+# ---------- Cron endpoints ----------
+
+WEBHOOK_CRON_SECRET = os.environ.get("WEBHOOK_CRON_SECRET", "")
+
+def verify_cron_auth(request: Request):
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        raise HTTPException(401, "Missing bearer")
+    token = auth[7:]
+    if not WEBHOOK_CRON_SECRET or not hmac.compare_digest(token, WEBHOOK_CRON_SECRET):
+        raise HTTPException(401, "Invalid webhook secret")
+
+@api.post("/cron/kpi-snapshot")
+async def cron_kpi_snapshot(request: Request):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    verify_cron_auth(request)
+    run_id = request.headers.get("X-Webhook-Id") or str(uuid.uuid4())
+    async def _do():
+        try:
+            now = datetime.now(timezone.utc)
+            # snapshot the previous month
+            first_of_this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            last_month_end = first_of_this_month - timedelta(seconds=1)
+            last_month_start = last_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            period_key = last_month_start.strftime("%Y-%m")
+            config = await get_kpi_config()
+            techs = await db.users.find({"role": "technician"}).to_list(500)
+            for t in techs:
+                s = await compute_kpi_for_technician(t["id"], last_month_start.isoformat(), last_month_end.isoformat(), config)
+                s["technician_name"] = t["name"]
+                s["department"] = t.get("department")
+                s["period"] = period_key
+                s["snapshot_at"] = now.isoformat()
+                s["run_id"] = run_id
+                await db.kpi_snapshots.update_one(
+                    {"technician_id": t["id"], "period": period_key},
+                    {"$set": s}, upsert=True,
+                )
+            logger.info(f"KPI snapshot saved for {period_key}: {len(techs)} technicians")
+        except Exception as e:
+            logger.error(f"kpi snapshot failed: {e}")
+    asyncio.create_task(_do())
+    return {"ok": True, "run_id": run_id}
+
+@api.post("/cron/sla-check")
+async def cron_sla_check(request: Request):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    verify_cron_auth(request)
+    run_id = request.headers.get("X-Webhook-Id") or str(uuid.uuid4())
+    async def _do():
+        try:
+            rules = await get_sla_rules()
+            now = datetime.now(timezone.utc)
+            open_tickets = await db.tickets.find({"status": {"$nin": ["Closed", "Resolved"]}}).to_list(2000)
+            techs = {u["id"]: u for u in await db.users.find({}, {"_id": 0}).to_list(500)}
+            sent = 0
+            for t in open_tickets:
+                target = rules.get(t["priority"], DEFAULT_SLA[t["priority"]])["resolution"]
+                age = (now - parse_iso(t["created_at"])).total_seconds() / 60
+                pct = (age / target) * 100 if target else 0
+                if pct < 75:
+                    continue
+                key = f"{t['id']}:{'violated' if pct >= 100 else 'warning'}"
+                if await db.notify_dedup.find_one({"key": key}):
+                    continue
+                assignee = techs.get(t.get("technician_id"), {}).get("name") or "Unassigned"
+                header = "🚨 SLA VIOLATION" if pct >= 100 else "⚠️ SLA WARNING"
+                msg = (
+                    f"{header}\n"
+                    f"Ticket <b>{t['number']}</b> — {t['subject']}\n"
+                    f"Priority: {t['priority']} · Status: {t['status']}\n"
+                    f"Age: {int(age)}m / target {target}m ({int(pct)}%)\n"
+                    f"Assignee: {assignee}"
+                )
+                await notify_all(msg)
+                await db.notify_dedup.insert_one({"key": key, "created_at": now.isoformat()})
+                sent += 1
+            logger.info(f"SLA check: scanned {len(open_tickets)}, sent {sent} alerts")
+        except Exception as e:
+            logger.error(f"sla check failed: {e}")
+    asyncio.create_task(_do())
+    return {"ok": True, "run_id": run_id}
+
+# ---------- KPI History + Leaderboard ----------
+
+@api.get("/kpi/history")
+async def kpi_history(technician_id: Optional[str] = None, months: int = 12, user=Depends(get_current_user)):
+    if user["role"] == "customer":
+        raise HTTPException(403)
+    q: Dict[str, Any] = {}
+    if technician_id:
+        q["technician_id"] = technician_id
+    docs = await db.kpi_snapshots.find(q, {"_id": 0}).sort("period", -1).to_list(500)
+    docs = docs[: months * 20]
+    return docs
+
+@api.post("/kpi/snapshot-now")
+async def kpi_snapshot_now(user=Depends(require_roles("admin", "manager"))):
+    """Manual trigger to create a snapshot of the current month for testing/on-demand use."""
+    now = datetime.now(timezone.utc)
+    period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    period_key = period_start.strftime("%Y-%m")
+    config = await get_kpi_config()
+    techs = await db.users.find({"role": "technician"}).to_list(500)
+    count = 0
+    for t in techs:
+        s = await compute_kpi_for_technician(t["id"], period_start.isoformat(), now.isoformat(), config)
+        s["technician_name"] = t["name"]
+        s["department"] = t.get("department")
+        s["period"] = period_key
+        s["snapshot_at"] = now.isoformat()
+        await db.kpi_snapshots.update_one(
+            {"technician_id": t["id"], "period": period_key},
+            {"$set": s}, upsert=True,
+        )
+        count += 1
+    await log_audit(user["id"], "kpi_snapshot", "kpi", period_key, {"count": count})
+    return {"ok": True, "period": period_key, "count": count}
+
+@api.get("/leaderboard")
+async def leaderboard(period: Optional[str] = None, user=Depends(get_current_user)):
+    """Public (any authenticated user) leaderboard.
+    If period given (YYYY-MM), use snapshot; else compute current-month live."""
+    if period:
+        docs = await db.kpi_snapshots.find({"period": period}, {"_id": 0}).sort("kpi_score", -1).to_list(200)
+        return {"period": period, "source": "snapshot", "rows": docs}
+    now = datetime.now(timezone.utc)
+    period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    config = await get_kpi_config()
+    techs = await db.users.find({"role": "technician", "active": True}).to_list(500)
+    rows = []
+    for t in techs:
+        s = await compute_kpi_for_technician(t["id"], period_start.isoformat(), now.isoformat(), config)
+        rows.append({
+            "technician_id": t["id"],
+            "technician_name": t["name"],
+            "department": t.get("department"),
+            "kpi_score": s["kpi_score"],
+            "weighted_point": s["weighted_point"],
+            "sla_compliance": s["sla_compliance"],
+            "avg_rating": s["avg_rating"],
+            "total_tickets": s["total_tickets"],
+            "resolved_tickets": s["resolved_tickets"],
+            "performance": s["performance"],
+        })
+    rows.sort(key=lambda x: -x["kpi_score"])
+    return {"period": period_start.strftime("%Y-%m"), "source": "live", "rows": rows}
+
+# ---------- Notification test endpoint ----------
+
+@api.post("/notifications/test")
+async def test_notification(user=Depends(require_roles("admin", "manager"))):
+    tg = await send_telegram("<b>ServiceOps test</b>\nThis is a test notification from your ITSM dashboard.")
+    wa = await send_whatsapp("ServiceOps test — this is a test notification from your ITSM dashboard.")
+    return {"telegram": tg, "whatsapp": wa}
 
 # ---------- Mount ----------
 

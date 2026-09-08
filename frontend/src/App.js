@@ -14,6 +14,7 @@ import Customers from "@/pages/Customers";
 import Categories from "@/pages/Categories";
 import Reports from "@/pages/Reports";
 import KPIScores from "@/pages/KPIScores";
+import Leaderboard from "@/pages/Leaderboard";
 import AuditLog from "@/pages/AuditLog";
 import SettingsPage from "@/pages/Settings";
 import { Toaster } from "@/components/ui/sonner";
@@ -31,6 +32,7 @@ export default function App() {
             <Route path="/tickets/new" element={<CreateTicket />} />
             <Route path="/tickets/:id" element={<TicketDetail />} />
             <Route path="/kpi" element={<ProtectedRoute roles={["admin","manager","supervisor","technician"]}><KPIScores /></ProtectedRoute>} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/reports" element={<ProtectedRoute roles={["admin","manager","supervisor"]}><Reports /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute roles={["admin","manager"]}><Users /></ProtectedRoute>} />
             <Route path="/customers" element={<ProtectedRoute roles={["admin","manager","supervisor"]}><Customers /></ProtectedRoute>} />

@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
   ChartBar, Ticket, Users, UsersThree, Tag, GearSix, ClipboardText,
-  ListChecks, SignOut, ChartLineUp, Warning, Article
+  ListChecks, SignOut, ChartLineUp, Warning, Article, Trophy
 } from "@phosphor-icons/react";
 
 const NAV = [
@@ -13,6 +13,7 @@ const NAV = [
   { to: "/my-tickets", label: "My Tickets", icon: ClipboardText, roles: ["customer"] },
   { to: "/tickets/new", label: "New Ticket", icon: Warning, roles: ["admin", "manager", "supervisor", "customer"] },
   { to: "/kpi", label: "KPI Scores", icon: ChartLineUp, roles: ["admin", "manager", "supervisor", "technician"] },
+  { to: "/leaderboard", label: "Leaderboard", icon: Trophy, roles: ["admin", "manager", "supervisor", "technician", "customer"] },
   { to: "/reports", label: "Reports", icon: ListChecks, roles: ["admin", "manager", "supervisor"] },
   { to: "/users", label: "Users", icon: Users, roles: ["admin", "manager"] },
   { to: "/customers", label: "Customers", icon: UsersThree, roles: ["admin", "manager", "supervisor"] },

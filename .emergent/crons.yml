@@ -1,0 +1,15 @@
+crons:
+  - name: kpi-monthly-snapshot
+    description: "Persists monthly KPI snapshot per technician on the 1st at 01:00 UTC"
+    cron: "0 1 1 * *"
+    endpoint: "{{BASE_URL}}/api/cron/kpi-snapshot"
+    method: POST
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    enabled: true
+  - name: sla-warning-check
+    description: "Every 30 min scans open tickets and sends Telegram/WhatsApp alerts on SLA breach risk"
+    cron: "*/30 * * * *"
+    endpoint: "{{BASE_URL}}/api/cron/sla-check"
+    method: POST
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    enabled: true

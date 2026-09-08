@@ -90,6 +90,11 @@ export default function TicketDetail() {
           <PriorityBadge priority={ticket.priority} />
           <StatusBadge status={ticket.status} />
           <SLAIndicator status={sla.sla_status} />
+          {ticket.escalated && (
+            <span data-testid="escalated-badge" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-red-400 bg-red-50 text-red-800 text-xs font-bold uppercase tracking-wide">
+              ⚡ Escalated
+            </span>
+          )}
           <span className="text-xs text-slate-500">Weight: <b>{ticket.weight}</b> pt</span>
         </div>}
         actions={<Button variant="ghost" onClick={() => nav(-1)}><ArrowLeft size={14} className="mr-1" /> Back</Button>}

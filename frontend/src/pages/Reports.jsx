@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { FilePdf, FileCsv } from "@phosphor-icons/react";
+import WeeklyDigest from "@/pages/WeeklyDigest";
 
 function download(url) {
   const a = document.createElement("a");
@@ -56,6 +57,7 @@ export default function Reports() {
             <TabsTrigger value="kpi" data-testid="tab-kpi">KPI</TabsTrigger>
             <TabsTrigger value="tickets" data-testid="tab-tickets">Tickets / Productivity</TabsTrigger>
             <TabsTrigger value="sla" data-testid="tab-sla">SLA</TabsTrigger>
+            <TabsTrigger value="digest" data-testid="tab-digest">Weekly Digest</TabsTrigger>
           </TabsList>
           <TabsContent value="kpi" className="mt-4">
             <ReportCard title="KPI Report" description="Technician-level KPI with SLA %, response, resolution, rating, weighted points and final KPI score." base="/reports/kpi/export" />
@@ -65,6 +67,9 @@ export default function Reports() {
           </TabsContent>
           <TabsContent value="sla" className="mt-4">
             <ReportCard title="SLA Violation Report" description="Tickets export filtered by SLA breach signals (use the Tickets tab with date filters and inspect SLA column)." base="/reports/tickets/export" />
+          </TabsContent>
+          <TabsContent value="digest" className="mt-4">
+            <WeeklyDigest />
           </TabsContent>
         </Tabs>
       </PageBody>

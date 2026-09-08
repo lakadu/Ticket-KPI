@@ -441,6 +441,9 @@ async def create_ticket(body: TicketCreate, user=Depends(get_current_user)):
         "rating": None,
         "feedback": None,
         "reopen_count": 0,
+        "escalated": False,
+        "escalated_at": None,
+        "escalated_to": None,
         "created_by": user["id"],
     }
     await db.tickets.insert_one(doc)
@@ -1292,19 +1295,38 @@ async def cron_sla_check(request: Request):
             rules = await get_sla_rules()
             now = datetime.now(timezone.utc)
             open_tickets = await db.tickets.find({"status": {"$nin": ["Closed", "Resolved"]}}).to_list(2000)
-            techs = {u["id"]: u for u in await db.users.find({}, {"_id": 0}).to_list(500)}
+            users_map = {u["id"]: u for u in await db.users.find({}, {"_id": 0}).to_list(500)}
+            supervisors = [u for u in users_map.values() if u["role"] in ("supervisor", "manager") and u.get("active", True)]
             sent = 0
+            escalated_count = 0
             for t in open_tickets:
                 target = rules.get(t["priority"], DEFAULT_SLA[t["priority"]])["resolution"]
                 age = (now - parse_iso(t["created_at"])).total_seconds() / 60
                 pct = (age / target) * 100 if target else 0
                 if pct < 75:
                     continue
-                key = f"{t['id']}:{'violated' if pct >= 100 else 'warning'}"
-                if await db.notify_dedup.find_one({"key": key}):
+                level = "violated" if pct >= 100 else "warning"
+                key = f"{t['id']}:{level}"
+                already_dedup = await db.notify_dedup.find_one({"key": key})
+
+                # Auto-escalate on SLA breach if not yet escalated
+                if pct >= 100 and not t.get("escalated"):
+                    supervisor = supervisors[0] if supervisors else None
+                    upd = {"escalated": True, "escalated_at": now.isoformat(), "escalated_to": supervisor["id"] if supervisor else None}
+                    await db.tickets.update_one({"id": t["id"]}, {"$set": upd})
+                    await db.ticket_activities.insert_one({
+                        "id": str(uuid.uuid4()), "ticket_id": t["id"],
+                        "user_id": supervisor["id"] if supervisor else "system",
+                        "type": "escalated",
+                        "description": f"Auto-escalated to {supervisor['name'] if supervisor else 'supervisor'} — SLA breached",
+                        "timestamp": now.isoformat(),
+                    })
+                    escalated_count += 1
+
+                if already_dedup:
                     continue
-                assignee = techs.get(t.get("technician_id"), {}).get("name") or "Unassigned"
-                header = "🚨 SLA VIOLATION" if pct >= 100 else "⚠️ SLA WARNING"
+                assignee = users_map.get(t.get("technician_id"), {}).get("name") or "Unassigned"
+                header = "🚨 SLA VIOLATION — ESCALATED" if pct >= 100 else "⚠️ SLA WARNING"
                 msg = (
                     f"{header}\n"
                     f"Ticket <b>{t['number']}</b> — {t['subject']}\n"
@@ -1315,11 +1337,153 @@ async def cron_sla_check(request: Request):
                 await notify_all(msg)
                 await db.notify_dedup.insert_one({"key": key, "created_at": now.isoformat()})
                 sent += 1
-            logger.info(f"SLA check: scanned {len(open_tickets)}, sent {sent} alerts")
+            logger.info(f"SLA check: scanned {len(open_tickets)}, sent {sent} alerts, escalated {escalated_count}")
         except Exception as e:
             logger.error(f"sla check failed: {e}")
     asyncio.create_task(_do())
     return {"ok": True, "run_id": run_id}
+
+@api.post("/cron/weekly-digest")
+async def cron_weekly_digest(request: Request):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    verify_cron_auth(request)
+    run_id = request.headers.get("X-Webhook-Id") or str(uuid.uuid4())
+    async def _do():
+        try:
+            now = datetime.now(timezone.utc)
+            week_ago = now - timedelta(days=7)
+            date_from = week_ago.isoformat()
+            date_to = now.isoformat()
+            tickets = await db.tickets.find({"created_at": {"$gte": date_from, "$lte": date_to}}).to_list(5000)
+            resolved = [t for t in tickets if t.get("status") in ("Resolved", "Closed")]
+            config = await get_kpi_config()
+            techs = await db.users.find({"role": "technician", "active": True}).to_list(500)
+            rows = []
+            for t in techs:
+                s = await compute_kpi_for_technician(t["id"], date_from, date_to, config)
+                s["name"] = t["name"]
+                rows.append(s)
+            rows.sort(key=lambda x: -x["kpi_score"])
+            top3 = rows[:3]
+            open_count = sum(1 for t in tickets if t.get("status") not in ("Closed", "Resolved"))
+            ratings = [t["rating"] for t in tickets if t.get("rating")]
+            weekly_avg_rating = round(sum(ratings) / len(ratings), 2) if ratings else 0
+
+            medals = ["🥇", "🥈", "🥉"]
+            top_lines = "\n".join(
+                f"{medals[i]} {r['name']} — KPI {r['kpi_score']} · SLA {r['sla_compliance']}%"
+                for i, r in enumerate(top3)
+            )
+            msg = (
+                f"📊 <b>Weekly KPI Digest</b>\n"
+                f"Week of {week_ago.strftime('%d %b')} → {now.strftime('%d %b %Y')}\n\n"
+                f"Tickets Created: <b>{len(tickets)}</b>\n"
+                f"Resolved / Closed: <b>{len(resolved)}</b>\n"
+                f"Still Open: <b>{open_count}</b>\n"
+                f"Avg Rating: <b>{weekly_avg_rating}/5</b>\n\n"
+                f"🏆 Top Performers:\n{top_lines}\n\n"
+                f"Open the dashboard for full details."
+            )
+            await notify_all(msg)
+            await db.digest_history.insert_one({
+                "id": str(uuid.uuid4()),
+                "run_id": run_id,
+                "period_start": date_from,
+                "period_end": date_to,
+                "total_tickets": len(tickets),
+                "resolved": len(resolved),
+                "top_performers": [{"name": r["name"], "kpi_score": r["kpi_score"]} for r in top3],
+                "message": msg,
+                "created_at": now.isoformat(),
+            })
+            logger.info(f"Weekly digest sent: {len(tickets)} tickets")
+        except Exception as e:
+            logger.error(f"weekly digest failed: {e}")
+    asyncio.create_task(_do())
+    return {"ok": True, "run_id": run_id}
+
+@api.post("/digest/preview")
+async def digest_preview(user=Depends(require_roles("admin", "manager"))):
+    """Manual trigger so managers can preview and send this week's digest on demand."""
+    now = datetime.now(timezone.utc)
+    week_ago = now - timedelta(days=7)
+    tickets = await db.tickets.find({"created_at": {"$gte": week_ago.isoformat()}}).to_list(5000)
+    resolved = [t for t in tickets if t.get("status") in ("Resolved", "Closed")]
+    config = await get_kpi_config()
+    techs = await db.users.find({"role": "technician", "active": True}).to_list(500)
+    rows = []
+    for t in techs:
+        s = await compute_kpi_for_technician(t["id"], week_ago.isoformat(), now.isoformat(), config)
+        rows.append({"name": t["name"], "kpi_score": s["kpi_score"], "sla_compliance": s["sla_compliance"], "resolved": s["resolved_tickets"]})
+    rows.sort(key=lambda x: -x["kpi_score"])
+    return {
+        "period": {"from": week_ago.isoformat(), "to": now.isoformat()},
+        "tickets_created": len(tickets),
+        "resolved": len(resolved),
+        "open": len(tickets) - len(resolved),
+        "top_performers": rows[:5],
+    }
+
+# ---------- Public Status Page ----------
+
+@api.get("/public/status")
+async def public_status():
+    """Public unauthenticated status endpoint for customers."""
+    now = datetime.now(timezone.utc)
+    since_7d = (now - timedelta(days=7)).isoformat()
+    rules = await get_sla_rules()
+
+    tickets = await db.tickets.find({"created_at": {"$gte": since_7d}}).to_list(5000)
+    open_tickets = await db.tickets.find({"status": {"$nin": ["Closed", "Resolved"]}}).to_list(2000)
+
+    sla_ok = sla_total = 0
+    resp_times = []; resl_times = []
+    ratings = []
+    for t in tickets:
+        if t.get("status") in ("Resolved", "Closed"):
+            rt = minutes_between(t["created_at"], t.get("first_response_at") or t.get("assigned_at"))
+            rl = minutes_between(t["created_at"], t.get("resolved_at"))
+            if rt is not None: resp_times.append(rt)
+            if rl is not None: resl_times.append(rl)
+            r = rules.get(t["priority"], DEFAULT_SLA[t["priority"]])
+            if rt is not None and rl is not None:
+                sla_total += 1
+                if rt <= r["response"] and rl <= r["resolution"]:
+                    sla_ok += 1
+        if t.get("rating"): ratings.append(t["rating"])
+
+    queue = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0}
+    critical_open = 0
+    for t in open_tickets:
+        queue[t["priority"]] = queue.get(t["priority"], 0) + 1
+        if t["priority"] == "Critical": critical_open += 1
+
+    active_techs = await db.users.count_documents({"role": "technician", "active": True})
+
+    compliance = round((sla_ok / sla_total * 100) if sla_total else 0, 1)
+    status = "operational"
+    if critical_open >= 3 or compliance < 75:
+        status = "degraded"
+    if compliance < 50 and critical_open >= 5:
+        status = "major_outage"
+
+    return {
+        "generated_at": now.isoformat(),
+        "status": status,
+        "period_days": 7,
+        "queue": {
+            "total_open": len(open_tickets),
+            "critical_open": critical_open,
+            "by_priority": [{"name": k, "value": v} for k, v in queue.items()],
+        },
+        "sla_compliance_7d": compliance,
+        "avg_response_min_7d": round(sum(resp_times) / len(resp_times), 1) if resp_times else 0,
+        "avg_resolution_min_7d": round(sum(resl_times) / len(resl_times), 1) if resl_times else 0,
+        "avg_rating_7d": round(sum(ratings) / len(ratings), 2) if ratings else 0,
+        "resolved_7d": len([t for t in tickets if t.get("status") in ("Resolved", "Closed")]),
+        "created_7d": len(tickets),
+        "active_technicians": active_techs,
+    }
 
 # ---------- KPI History + Leaderboard ----------
 

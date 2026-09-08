@@ -71,7 +71,7 @@ export default function Login() {
             ))}
           </div>
         </div>
-        <div className="relative z-10 text-xs text-slate-500">© {new Date().getFullYear()} ServiceOps</div>
+        <div className="relative z-10 text-xs text-slate-500">© {new Date().getFullYear()} ServiceOps · <a href="/status" className="hover:text-slate-300 underline underline-offset-4" data-testid="status-link">Public status</a></div>
       </div>
 
       <div className="flex items-center justify-center p-6 lg:p-12">

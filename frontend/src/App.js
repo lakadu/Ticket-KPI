@@ -15,6 +15,7 @@ import Categories from "@/pages/Categories";
 import Reports from "@/pages/Reports";
 import KPIScores from "@/pages/KPIScores";
 import Leaderboard from "@/pages/Leaderboard";
+import PublicStatus from "@/pages/PublicStatus";
 import AuditLog from "@/pages/AuditLog";
 import SettingsPage from "@/pages/Settings";
 import { Toaster } from "@/components/ui/sonner";
@@ -25,6 +26,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/status" element={<PublicStatus />} />
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/tickets" element={<ProtectedRoute roles={["admin","manager","supervisor","technician"]}><Tickets /></ProtectedRoute>} />

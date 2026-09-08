@@ -11,7 +11,7 @@ const NAV = [
   { to: "/", label: "Dashboard", icon: ChartBar, roles: ["admin", "manager", "supervisor", "technician", "customer"] },
   { to: "/tickets", label: "Tickets", icon: Ticket, roles: ["admin", "manager", "supervisor", "technician"] },
   { to: "/my-tickets", label: "My Tickets", icon: ClipboardText, roles: ["customer"] },
-  { to: "/tickets/new", label: "New Ticket", icon: Warning, roles: ["admin", "manager", "supervisor", "customer"] },
+  { to: "/tickets/new", label: "New Ticket", icon: Warning, roles: ["admin", "manager", "supervisor", "technician", "customer"] },
   { to: "/kpi", label: "KPI Scores", icon: ChartLineUp, roles: ["admin", "manager", "supervisor", "technician"] },
   { to: "/leaderboard", label: "Leaderboard", icon: Trophy, roles: ["admin", "manager", "supervisor", "technician", "customer"] },
   { to: "/reports", label: "Reports", icon: ListChecks, roles: ["admin", "manager", "supervisor"] },

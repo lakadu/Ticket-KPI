@@ -168,7 +168,14 @@ class TicketCreate(BaseModel):
     priority: str = "Medium"
     department: Optional[str] = None
     customer_id: Optional[str] = None  # optional; if not customer role
+    reported_via: Optional[str] = None  # Phone | Walk-in | Email | Chat | Self-service
     attachments: List[Dict[str, Any]] = Field(default_factory=list)
+
+class QuickCustomerCreate(BaseModel):
+    name: str
+    email: Optional[EmailStr] = None
+    department: Optional[str] = None
+    phone: Optional[str] = None
 
 class TicketAssign(BaseModel):
     technician_id: str  # primary/PIC
@@ -367,6 +374,36 @@ async def delete_user(uid: str, user=Depends(require_roles("admin"))):
     await log_audit(user["id"], "deactivate_user", "user", uid)
     return {"ok": True}
 
+@api.post("/customers/quick")
+async def quick_create_customer(body: QuickCustomerCreate, user=Depends(require_roles("admin", "manager", "supervisor", "technician"))):
+    """Helpdesk-friendly: quickly create a customer while filing a ticket on their behalf.
+    Generates a username from name+random suffix, sets a default password 'customer123' the customer can change later."""
+    import re, secrets
+    base = re.sub(r"[^a-z0-9]+", "", body.name.lower())[:12] or "cust"
+    for _ in range(6):
+        suffix = secrets.token_hex(2)
+        username = f"{base}{suffix}"
+        if not await db.users.find_one({"username": username}):
+            break
+    email = (body.email or f"{username}@itsm.local").lower()
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(400, "Email already exists")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "email": email,
+        "username": username,
+        "name": body.name,
+        "role": "customer",
+        "department": body.department,
+        "phone": body.phone,
+        "active": True,
+        "password_hash": hash_pw("customer123"),
+        "created_at": now_iso(),
+    }
+    await db.users.insert_one(doc)
+    await log_audit(user["id"], "quick_create_customer", "user", doc["id"], {"email": email, "created_by_role": user["role"]})
+    return strip_user(doc)
+
 # ---------- Categories ----------
 
 @api.get("/categories")
@@ -419,6 +456,8 @@ async def create_ticket(body: TicketCreate, user=Depends(get_current_user)):
     tid = str(uuid.uuid4())
     number = await next_ticket_number()
     now = now_iso()
+    # Default reported_via: if creator is a customer, it's Self-service; else Helpdesk
+    default_via = "Self-service" if user["role"] == "customer" else "Helpdesk"
     doc = {
         "id": tid,
         "number": number,
@@ -429,6 +468,7 @@ async def create_ticket(body: TicketCreate, user=Depends(get_current_user)):
         "category_id": body.category_id,
         "subcategory": body.subcategory,
         "priority": body.priority,
+        "reported_via": body.reported_via or default_via,
         "status": "Open",
         "technician_id": None,
         "technicians": [],  # all technicians handling this ticket (primary + collaborators)
@@ -452,11 +492,13 @@ async def create_ticket(body: TicketCreate, user=Depends(get_current_user)):
         "created_by": user["id"],
     }
     await db.tickets.insert_one(doc)
+    on_behalf = user["role"] != "customer" and customer_id != user["id"]
+    creator_label = f" (via {doc['reported_via']} by {user['name']})" if on_behalf else ""
     await db.ticket_activities.insert_one({
         "id": str(uuid.uuid4()), "ticket_id": tid, "user_id": user["id"],
-        "type": "created", "description": f"Ticket {number} created", "timestamp": now,
+        "type": "created", "description": f"Ticket {number} created{creator_label}", "timestamp": now,
     })
-    await log_audit(user["id"], "create_ticket", "ticket", tid, {"number": number, "priority": body.priority})
+    await log_audit(user["id"], "create_ticket", "ticket", tid, {"number": number, "priority": body.priority, "on_behalf": on_behalf, "reported_via": doc["reported_via"]})
     return await enrich_ticket(doc)
 
 @api.get("/tickets")

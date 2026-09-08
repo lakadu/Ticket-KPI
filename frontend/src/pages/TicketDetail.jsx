@@ -235,6 +235,7 @@ export default function TicketDetail() {
                 )}
                 <div><span className="text-slate-500 text-xs">Customer:</span> <b>{users[ticket.customer_id]?.name || "-"}</b></div>
                 <div><span className="text-slate-500 text-xs">Department:</span> <b>{ticket.department || "-"}</b></div>
+                {ticket.reported_via && <div><span className="text-slate-500 text-xs">Reported via:</span> <b>{ticket.reported_via}</b></div>}
                 <div><span className="text-slate-500 text-xs">Created:</span> <b>{formatDate(ticket.created_at)}</b></div>
                 <div><span className="text-slate-500 text-xs">Reopens:</span> <b>{ticket.reopen_count}</b></div>
               </CardContent>

@@ -24,6 +24,16 @@ const NAV = [
   { to: "/audit-log", label: "Audit Log", icon: Article, roles: ["admin", "manager"] },
 ];
 
+function currentPageTitle(pathname) {
+  if (pathname === "/") return "Dashboard";
+  if (pathname.startsWith("/tickets/") && pathname !== "/tickets/new") return "Detail Ticket";
+  const sorted = [...NAV].filter(n => n.to !== "/").sort((a, b) => b.to.length - a.to.length);
+  for (const n of sorted) {
+    if (pathname === n.to || pathname.startsWith(n.to + "/")) return n.label;
+  }
+  return "ServiceOps";
+}
+
 function Brand() {
   return (
     <div className="flex items-center gap-2">
@@ -95,6 +105,7 @@ export default function Layout() {
   const items = NAV.filter(n => n.roles.includes(user.role));
 
   const handleLogout = async () => { await logout(); nav("/login"); };
+  const pageTitle = currentPageTitle(location.pathname);
 
   // Close the mobile drawer whenever the route changes
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
@@ -114,23 +125,24 @@ export default function Layout() {
 
       {/* Mobile top bar */}
       <header className="lg:hidden sticky top-0 z-30 h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
             aria-label="Buka menu"
             data-testid="mobile-menu-btn"
             onClick={() => setMobileOpen(true)}
-            className="p-2 -ml-2 rounded-md text-slate-700 hover:bg-slate-100"
+            className="p-2 -ml-2 rounded-md text-slate-700 hover:bg-slate-100 shrink-0"
           >
             <ListIcon size={22} />
           </button>
-          <Brand />
+          <div className="w-8 h-8 rounded-md bg-slate-900 text-white flex items-center justify-center font-display font-bold shrink-0">IT</div>
+          <div className="font-display font-semibold text-slate-900 truncate" data-testid="mobile-page-title">{pageTitle}</div>
         </div>
         <Button
           data-testid="logout-btn-mobile"
           size="icon"
           variant="ghost"
-          className="text-slate-500 hover:text-slate-900"
+          className="text-slate-500 hover:text-slate-900 shrink-0"
           onClick={handleLogout}
         >
           <SignOut size={18} />

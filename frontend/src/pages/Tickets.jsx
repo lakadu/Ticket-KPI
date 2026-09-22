@@ -83,7 +83,8 @@ export default function Tickets() {
         </Card>
 
         <Card className="border-slate-200 shadow-none rounded-md">
-          <div className="overflow-x-auto">
+          {/* Desktop / tablet: table */}
+          <div className="overflow-x-auto hidden md:block">
             <Table data-testid="tickets-table">
               <TableHeader>
                 <TableRow className="bg-slate-50">
@@ -117,6 +118,38 @@ export default function Tickets() {
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          {/* Mobile: card list */}
+          <div className="md:hidden divide-y divide-slate-200" data-testid="tickets-cards">
+            {pageData.map(t => (
+              <button
+                key={t.id}
+                type="button"
+                data-testid={`ticket-card-${t.number}`}
+                onClick={() => nav(`/tickets/${t.id}`)}
+                className="w-full text-left p-4 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-xs text-slate-500">{t.number}</span>
+                  <span className="text-[11px] text-slate-400 shrink-0">{formatDate(t.created_at)}</span>
+                </div>
+                <div className="font-medium text-slate-900 mt-1 line-clamp-2">{t.subject}</div>
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <PriorityBadge priority={t.priority} />
+                  <StatusBadge status={t.status} />
+                  <SLAIndicator status={t.sla.sla_status} />
+                </div>
+                <div className="text-xs text-slate-600 mt-2 tabular-nums">
+                  {t.sla.resolution_time != null
+                    ? <>Selesai dalam <b>{formatMinutes(t.sla.resolution_time)}</b></>
+                    : <>Umur <b>{formatMinutes(t.sla.age_minutes)}</b></>}
+                </div>
+              </button>
+            ))}
+            {tickets.length === 0 && (
+              <div className="text-center text-slate-500 py-8">Belum ada ticket.</div>
+            )}
           </div>
           {tickets.length > perPage && (
             <div className="flex justify-between items-center p-4 border-t border-slate-200">

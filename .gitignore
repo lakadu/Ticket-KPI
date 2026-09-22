@@ -93,6 +93,9 @@ frontend/node_modules/.cache/default-development/10.pack
 .env
 .env.*
 *.env
+# ...but keep example/template env files in the repo
+!.env.docker.example
+!.env.example
 credentials.json
 *.key
 .credentials

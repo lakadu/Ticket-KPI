@@ -101,3 +101,69 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+## user_problem_statement: "Lanjutkan pembuatan aplikasi KPI (IT Ticketing & KPI Management System) dari GitHub agar bisa di-deploy secara lokal/produksi menggunakan Docker."
+
+## backend:
+##   - task: "Configurable auth cookie flags (COOKIE_SECURE/COOKIE_SAMESITE/COOKIE_DOMAIN)"
+##     implemented: true
+##     working: true
+##     file: "backend/server.py"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: false
+##     status_history:
+##         -working: "NA"
+##         -agent: "main"
+##         -comment: "Made set_auth_cookies read COOKIE_SECURE/SAMESITE/DOMAIN from env. Defaults preserved (secure=true, samesite=none) so preview keeps working. Verified via curl: login 200 + Set-Cookie SameSite=none; Secure."
+##         -working: true
+##         -agent: "testing"
+##         -comment: "REGRESSION TEST PASSED: POST /api/auth/login returns 200 with httpOnly cookies. Verified SameSite=none and Secure flags are present in Set-Cookie headers for both access_token and refresh_token. Cookie-based auth flow working correctly in HTTPS preview environment."
+##   - task: "Health endpoint /api/health"
+##     implemented: true
+##     working: true
+##     file: "backend/server.py"
+##     stuck_count: 0
+##     priority: "medium"
+##     needs_retesting: false
+##     status_history:
+##         -working: true
+##         -agent: "main"
+##         -comment: "Added GET /api/health returning status+db ping. Verified: {'status':'ok','database':true}."
+##         -working: true
+##         -agent: "testing"
+##         -comment: "REGRESSION TEST PASSED: GET /api/health returns 200 with correct JSON structure {'status':'ok','database':true}. Database connectivity confirmed."
+##   - task: "SEED_DEMO env guard for demo users/tickets"
+##     implemented: true
+##     working: true
+##     file: "backend/server.py"
+##     stuck_count: 0
+##     priority: "medium"
+##     needs_retesting: false
+##     status_history:
+##         -working: "NA"
+##         -agent: "main"
+##         -comment: "Demo users + demo tickets now only seed when SEED_DEMO=true (default true preserves preview). Admin + categories + settings always seeded. Docker uses SEED_DEMO=false."
+##         -working: true
+##         -agent: "testing"
+##         -comment: "REGRESSION TEST PASSED: GET /api/users returns 8 users including admin@itsm.local and 4 demo accounts (manager, supervisor, tech1, customer1). SEED_DEMO=true default working correctly in preview. Seeding behavior preserved."
+
+## metadata:
+##   created_by: "main_agent"
+##   version: "1.2"
+##   test_sequence: 2
+##   run_ui: false
+
+## test_plan:
+##   current_focus:
+##     - "Configurable auth cookie flags (COOKIE_SECURE/COOKIE_SAMESITE/COOKIE_DOMAIN)"
+##     - "Health endpoint /api/health"
+##     - "SEED_DEMO env guard for demo users/tickets"
+##   stuck_tasks: []
+##   test_all: false
+##   test_priority: "high_first"
+
+## agent_communication:
+##     -agent: "main"
+##     -message: "Added Docker deployment (mongo + FastAPI backend + React/Nginx frontend, same-origin /api proxy). Backend code changes are minimal & env-gated. Please run a focused REGRESSION test on auth flow (login with admin@itsm.local/admin123, /api/auth/me, logout) and GET /api/health. Do NOT change any cookie/seed behavior; defaults must remain intact for the running preview. No need to test the full ticket/KPI suite unless auth is impacted."
+##     -agent: "testing"
+##     -message: "REGRESSION TEST COMPLETE - ALL PASSED ✅. Tested 5 critical scenarios: (1) Health endpoint returns 200 with correct JSON, (2) Login with admin@itsm.local/admin123 returns 200 with httpOnly cookies (SameSite=none; Secure verified), (3) Auth /me with cookies returns 200 with admin user data, (4) Logout returns 200 and clears cookies, (5) Seeding confirmed working with 8 users (admin + 4 demo accounts). No regressions detected. Cookie behavior and seeding defaults preserved correctly for preview environment."

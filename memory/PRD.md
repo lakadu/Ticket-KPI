@@ -40,6 +40,13 @@ Web app to manage IT tickets/complaints, technicians, SLA, and automatically com
 - ✅ Audit log page + backend audit for all critical actions.
 - ✅ Testing agent: 34/34 backend tests pass, all frontend flows validated.
 
+## Docker deployment (2025-07)
+- ✅ Production Docker stack: `docker-compose.yml` (mongo:7 + FastAPI backend + React/Nginx frontend).
+- ✅ Nginx serves the React build AND reverse-proxies `/api` -> backend (same-origin => httpOnly cookies work, no CORS).
+- ✅ Backend Dockerfile uses slim `requirements.docker.txt` (only imported deps); `/api/health` used for healthcheck.
+- ✅ Env-driven config: `COOKIE_SECURE`/`COOKIE_SAMESITE`/`COOKIE_DOMAIN` (defaults preserve HTTPS preview), `SEED_DEMO` (default true in preview, false in Docker for clean prod DB), secrets via `.env` (`.env.docker.example` provided).
+- ✅ Docs: `DEPLOY_DOCKER.md` (setup, run, HTTPS notes, backup). Run: `cp .env.docker.example .env` -> `docker compose up -d --build` -> http://localhost:8080.
+
 ## Deferred / Backlog
 - P1: Actually send Telegram/WhatsApp notifications when tokens are set (webhook to bot API / gateway).
 - P1: File preview modal / lightbox for image attachments.

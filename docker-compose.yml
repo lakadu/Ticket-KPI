@@ -1,0 +1,63 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: ${DB_NAME:-itsm_kpi_db}
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks:
+      - itsm
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      MONGO_URL: "mongodb://mongo:27017"
+      DB_NAME: ${DB_NAME:-itsm_kpi_db}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      WEBHOOK_CRON_SECRET: ${WEBHOOK_CRON_SECRET:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@itsm.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      # Cookie behavior. For plain HTTP (default local) keep secure=false + lax.
+      # If you serve over HTTPS, set COOKIE_SECURE=true and COOKIE_SAMESITE=lax (or none).
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
+      # Seed demo users + demo tickets on first boot (set false for a clean production DB)
+      SEED_DEMO: ${SEED_DEMO:-false}
+    expose:
+      - "8001"
+    networks:
+      - itsm
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Empty => same-origin "/api" calls proxied by Nginx to backend
+        REACT_APP_BACKEND_URL: ""
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${APP_PORT:-8080}:80"
+    networks:
+      - itsm
+
+volumes:
+  mongo_data:
+
+networks:
+  itsm:
+    driver: bridge

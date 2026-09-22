@@ -41,8 +41,27 @@ db = client[os.environ["DB_NAME"]]
 app = FastAPI(title="IT Ticketing & KPI Management System")
 api = APIRouter(prefix="/api")
 
+
+@api.get("/health")
+async def health_check():
+    """Lightweight liveness/readiness probe used by Docker/orchestrators."""
+    db_ok = True
+    try:
+        await db.command("ping")
+    except Exception:
+        db_ok = False
+    return {"status": "ok" if db_ok else "degraded", "database": db_ok}
+
 JWT_ALGO = "HS256"
 JWT_SECRET = os.environ["JWT_SECRET"]
+
+# Cookie behavior (configurable for HTTP-local vs HTTPS-prod deployments)
+# Defaults preserve the existing cross-site HTTPS preview behavior.
+COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "true").strip().lower() == "true"
+COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "none").strip().lower()  # "lax" | "strict" | "none"
+COOKIE_DOMAIN = os.environ.get("COOKIE_DOMAIN", "").strip() or None
+# Whether to seed demo users + demo tickets on startup (disable for production)
+SEED_DEMO = os.environ.get("SEED_DEMO", "true").strip().lower() == "true"
 
 ROLES = ["admin", "manager", "supervisor", "technician", "customer"]
 PRIORITIES = ["Low", "Medium", "High", "Critical"]
@@ -293,8 +312,8 @@ async def enrich_ticket(t: Dict[str, Any]) -> Dict[str, Any]:
 def set_auth_cookies(response: Response, user_id: str):
     access = create_token(user_id, "access")
     refresh = create_token(user_id, "refresh")
-    response.set_cookie("access_token", access, httponly=True, secure=True, samesite="none", max_age=60 * 60 * 12, path="/")
-    response.set_cookie("refresh_token", refresh, httponly=True, secure=True, samesite="none", max_age=60 * 60 * 24 * 7, path="/")
+    response.set_cookie("access_token", access, httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE, domain=COOKIE_DOMAIN, max_age=60 * 60 * 12, path="/")
+    response.set_cookie("refresh_token", refresh, httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE, domain=COOKIE_DOMAIN, max_age=60 * 60 * 24 * 7, path="/")
 
 @api.post("/auth/login")
 async def login(body: LoginIn, response: Response):
@@ -1155,7 +1174,7 @@ async def seed_data():
     elif not verify_pw(admin_password, existing["password_hash"]):
         await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_pw(admin_password)}})
 
-    if await db.users.count_documents({}) <= 1:
+    if SEED_DEMO and await db.users.count_documents({}) <= 1:
         demo = [
             ("manager@itsm.local", "manager", "Rita Manager", "manager", "IT"),
             ("supervisor@itsm.local", "supervisor", "Bagas Supervisor", "supervisor", "IT"),
@@ -1192,7 +1211,7 @@ async def seed_data():
         await db.settings.insert_one({"key": "integrations", "value": {"telegram_bot_token": "", "telegram_chat_id": "", "whatsapp_provider": "", "whatsapp_api_key": "", "whatsapp_sender": ""}})
 
     # Seed tickets
-    if await db.tickets.count_documents({}) == 0:
+    if SEED_DEMO and await db.tickets.count_documents({}) == 0:
         techs = await db.users.find({"role": "technician"}, {"_id": 0}).to_list(10)
         customers = await db.users.find({"role": "customer"}, {"_id": 0}).to_list(10)
         cats_list = await db.categories.find({}, {"_id": 0}).to_list(20)

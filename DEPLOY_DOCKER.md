@@ -18,7 +18,7 @@ berada pada origin yang sama sehingga cookie auth (httpOnly) bekerja tanpa CORS.
 
 ## 2. Konfigurasi
 ```bash
-cp .env.docker.example .env
+cp env.docker.example .env
 ```
 Edit `.env` dan **wajib** ganti minimal:
 - `JWT_SECRET` (mis. `openssl rand -hex 32`)

@@ -14,9 +14,11 @@ ENV DISABLE_ESLINT_PLUGIN=true
 ENV GENERATE_SOURCEMAP=false
 ENV CI=false
 
-# Install deps (leverage layer caching)
-COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile --network-timeout 600000
+# Install deps (leverage layer caching).
+# yarn.lock is optional (the trailing * keeps the build working even if the
+# lockfile wasn't committed/cloned). When present it is used for reproducible installs.
+COPY package.json yarn.lock* ./
+RUN yarn install --network-timeout 600000
 
 # Build
 COPY . .
